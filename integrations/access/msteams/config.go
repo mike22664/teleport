@@ -33,6 +33,7 @@ type Config struct {
 	// Client is the Teleport API client.
 	Client     teleport.Client
 	Teleport   lib.TeleportConfig
+	Client     teleport.Client
 	Recipients common.RawRecipientsMap `toml:"role_to_recipients"`
 	Log        logger.Config
 	MSAPI      msapi.Config `toml:"msapi"`
