@@ -51,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
-	"github.com/gravitational/teleport/api/client/autoupdate"
 	crownjewelapi "github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/discoveryconfig"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
@@ -890,11 +889,6 @@ func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
-}
-
-// AutoUpdateServiceClient returns an unadorned client for the AutoUpdate service.
-func (c *Client) AutoUpdateServiceClient() *autoupdate.Client {
-	return autoupdate.NewClient(autoupdatev1pb.NewAutoUpdateServiceClient(c.conn))
 }
 
 // Ping gets basic info about the auth server.
@@ -2872,20 +2866,14 @@ func (c *Client) GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditC
 
 // GetAutoUpdateConfig gets autoupdate configuration.
 func (c *Client) GetAutoUpdateConfig(ctx context.Context) (*autoupdatev1pb.AutoUpdateConfig, error) {
-	resp, err := c.AutoUpdateServiceClient().GetAutoUpdateConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
+	resp, err := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn).GetAutoUpdateConfig(ctx, &autoupdatev1pb.GetAutoUpdateConfigRequest{})
+	return resp, trace.Wrap(err)
 }
 
 // GetAutoUpdateVersion gets autoupdate version.
 func (c *Client) GetAutoUpdateVersion(ctx context.Context) (*autoupdatev1pb.AutoUpdateVersion, error) {
-	resp, err := c.AutoUpdateServiceClient().GetAutoUpdateVersion(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return resp, nil
+	resp, err := autoupdatev1pb.NewAutoUpdateServiceClient(c.conn).GetAutoUpdateVersion(ctx, &autoupdatev1pb.GetAutoUpdateVersionRequest{})
+	return resp, trace.Wrap(err)
 }
 
 // GetClusterAccessGraphConfig retrieves the Cluster Access Graph configuration from Auth server.

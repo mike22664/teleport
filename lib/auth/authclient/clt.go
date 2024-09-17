@@ -31,7 +31,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/autoupdate"
 	"github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/databaseobject"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
@@ -1823,9 +1822,6 @@ type ClientI interface {
 	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
 	// will return "not implemented" errors (as per the default gRPC behavior).
 	StaticHostUserClient() services.StaticHostUser
-
-	// AutoUpdateServiceClient returns a Autoupdate service client.
-	AutoUpdateServiceClient() *autoupdate.Client
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
