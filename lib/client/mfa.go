@@ -80,5 +80,6 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) libmfa.PromptCo
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin
 		cfg.WebauthnSupported = true
 	}
+
 	return cfg
 }

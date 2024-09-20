@@ -97,7 +97,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil
-	promptSSO := false // TODO(Joerger): check for SSO challenge once added in separate PR.
+	promptSSO := chal.SSOChallenge != nil
 
 	// No prompt to run, no-op.
 	if !promptOTP && !promptWebauthn && !promptSSO {
@@ -119,6 +119,11 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	if promptWebauthn && !c.WebauthnSupported {
 		promptWebauthn = false
 		slog.DebugContext(ctx, "hardware device MFA not supported by your platform")
+	}
+
+	if promptSSO && c.SSOMFACeremony == nil {
+		promptSSO = false
+		slog.DebugContext(ctx, "SSO MFA not supported by this client, this is likely a bug")
 	}
 
 	// Prefer whatever method is requested by the client.
@@ -170,8 +175,8 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		resp, err := c.promptWebauthn(ctx, chal, c.getWebauthnPrompt(ctx))
 		return resp, trace.Wrap(err)
 	case promptSSO:
-		// TODO(Joerger): prompt for SSO once implemented.
-		return nil, trace.NotImplemented("SSO MFA not implemented")
+		resp, err := c.promptSSO(ctx, chal)
+		return resp, trace.Wrap(err)
 	case promptOTP:
 		resp, err := c.promptOTP(ctx, c.Quiet)
 		return resp, trace.Wrap(err)
@@ -328,4 +333,24 @@ func (w *webauthnPromptWithOTP) PromptPIN() (string, error) {
 	w.cancelOTP()
 
 	return w.LoginPrompt.PromptPIN()
+}
+
+func (c *CLIPrompt) promptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if err := c.SSOMFACeremony.HandleRedirect(ctx, chal.SSOChallenge.RedirectUrl); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mfaToken, err := c.SSOMFACeremony.GetCallbackMFAToken(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_SSO{
+			SSO: &proto.SSOResponse{
+				RequestId: chal.SSOChallenge.RequestId,
+				Token:     mfaToken,
+			},
+		},
+	}, nil
 }
