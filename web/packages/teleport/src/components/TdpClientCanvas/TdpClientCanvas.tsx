@@ -37,8 +37,6 @@ function TdpClientCanvas(props: Props) {
   } = props;
 
   useEffect(() => {
-    // Empty dependency array ensures this runs only once after initial render.
-    // This code will run after the component has been mounted and the canvasRef has been assigned.
     const canvas = canvasRef.current;
     if (canvas) {
       // Make the canvas a focusable keyboard listener
@@ -66,6 +64,7 @@ function TdpClientCanvas(props: Props) {
     canvas.addEventListener('focusout', onFocusOut);
 
     return () => {
+      console.log('!!!!canvas cleaning up!!!!!');
       window.removeEventListener('resize', windowOnResize);
       canvas.removeEventListener('mousemove', onMouseMove);
       canvas.removeEventListener('contextmenu', onContextMenu);

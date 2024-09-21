@@ -355,7 +355,7 @@ export default class Client extends EventEmitterWebAuthnSender {
       this.codec.decodeRdpConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
     this.logger.info(
-      `screen spec received from server ${spec.width} x ${spec.height}`
+      `received screen size from server (${spec.width} x ${spec.height})`
     );
 
     this.initFastPathProcessor(ioChannelId, userChannelId, {
@@ -625,7 +625,7 @@ export default class Client extends EventEmitterWebAuthnSender {
 
   sendClientScreenSpec(spec: ClientScreenSpec) {
     this.logger.info(
-      `requesting screen spec from client ${spec.width} x ${spec.height}`
+      `sending screen size to server (${spec.width}x${spec.height})`
     );
     this.send(this.codec.encodeClientScreenSpec(spec));
   }

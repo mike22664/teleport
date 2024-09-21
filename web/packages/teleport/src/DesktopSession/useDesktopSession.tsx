@@ -240,7 +240,7 @@ export default function useDesktopSession() {
             }));
           }
           const bmpFrame = bmpBuffer[i];
-          if (ctx) {
+          if (ctx && bmpFrame.image_data.data.length != 0) {
             ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
           }
         }
