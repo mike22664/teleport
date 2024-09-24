@@ -39,6 +39,7 @@ import {
   ClipboardData,
   PngFrame,
   PointerData,
+  ScrollAxis,
 } from 'teleport/lib/tdp/codec';
 import { Sha256Digest } from 'teleport/lib/util';
 import cfg from 'teleport/config';
@@ -46,6 +47,7 @@ import { BitmapFrame } from 'teleport/lib/tdp/client';
 
 import useTdpClientCanvas from './useTdpClientCanvas';
 import { TopBarHeight } from './TopBar';
+import { KeyboardHandler } from './KeyboardHandler';
 
 import type { UrlDesktopParams } from 'teleport/config';
 import type { NotificationItem } from 'shared/components/Notification';
@@ -65,6 +67,17 @@ export default function useDesktopSession() {
     statusText: '',
   });
 
+  const keyboardHandler = useRef<KeyboardHandler>(null);
+
+  useEffect(() => {
+    keyboardHandler.current = new KeyboardHandler();
+
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      keyboardHandler.current.dispose();
+    };
+  }, []);
+
   // // tdpConnection tracks the state of the tdpClient's TDP connection
   // // - 'processing' at first
   // // - 'success' once the first TdpClientEvent.IMAGE_FRAGMENT is seen
@@ -72,8 +85,81 @@ export default function useDesktopSession() {
   // // - '' if the connection closed gracefully by the server, should have a statusText
   // const { attempt: tdpConnection, setAttempt: setTdpConnection } =
   //   useAttempt('processing');
-  const [tdpClient, setTdpClient] = useState<TdpClient>(null);
-  const clientCanvasProps = useTdpClientCanvas(tdpClient);
+  // const [tdpClient, setTdpClient] = useState<TdpClient>(null);
+  const tdpClient = useRef<TdpClient>(null);
+  const clientCanvasProps = useTdpClientCanvas(tdpClient.current);
+
+  const onMouseDown = (e: MouseEvent) => {
+    if (e.button === 0 || e.button === 1 || e.button === 2) {
+      tdpClient.current.sendMouseButton(e.button, ButtonState.DOWN);
+    }
+
+    // TODO (avatus) : figure out where to call this in client data
+    // // Opportunistically sync local clipboard to remote while
+    // // transient user activation is in effect.
+    // // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
+    // sendLocalClipboardToRemote(cli);
+  };
+
+  const onMouseWheelScroll = (e: WheelEvent) => {
+    e.preventDefault();
+    // We only support pixel scroll events, not line or page events.
+    // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/deltaMode
+    if (e.deltaMode === WheelEvent.DOM_DELTA_PIXEL) {
+      if (e.deltaX) {
+        tdpClient.current.sendMouseWheelScroll(
+          ScrollAxis.HORIZONTAL,
+          -e.deltaX
+        );
+      }
+      if (e.deltaY) {
+        tdpClient.current.sendMouseWheelScroll(ScrollAxis.VERTICAL, -e.deltaY);
+      }
+    }
+  };
+
+  const onMouseUp = (e: MouseEvent) => {
+    if (e.button === 0 || e.button === 1 || e.button === 2) {
+      tdpClient.current.sendMouseButton(e.button, ButtonState.UP);
+    }
+  };
+
+  const onMouseMove = (e: MouseEvent) => {
+    const canvas = clientCanvasProps.canvasRef.current;
+    if (!tdpClient.current || !canvas) {
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    tdpClient.current.sendMouseMove(x, y);
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    keyboardHandler.current.handleKeyboardEvent({
+      cli: tdpClient.current,
+      e,
+      state: ButtonState.DOWN,
+    });
+
+    // TODO (avatus): figure where to call this in client data
+
+    // // The key codes in the if clause below are those that have been empirically determined not
+    // // to count as transient activation events. According to the documentation, a keydown for
+    // // the Esc key and any "shortcut key reserved by the user agent" don't count as activation
+    // // events: https://developer.mozilla.org/en-US/docs/Web/Security/User_activation.
+    // if (e.key !== 'Meta' && e.key !== 'Alt' && e.key !== 'Escape') {
+    //   onKeyDown();
+    // }
+  };
+
+  const onKeyUp = (e: KeyboardEvent) => {
+    keyboardHandler.current.handleKeyboardEvent({
+      cli: tdpClient.current,
+      e,
+      state: ButtonState.UP,
+    });
+  };
 
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
 
@@ -331,25 +417,23 @@ export default function useDesktopSession() {
   };
 
   useEffect(() => {
-    if (!tdpClient) {
-      setTdpClient(
-        new TdpClient(addr, {
-          onClipboardData,
-          onError,
-          onWarning,
-          onInfo,
-          onWsOpen,
-          onPngFrame: onPngFrame(), // for buffered rendering
-          onBmpFrame: onBmpFrame(),
-          onScreenSpec,
-          onPointer,
-          onWsClose,
-        })
-      );
+    if (!tdpClient.current) {
+      tdpClient.current = new TdpClient(addr, {
+        onClipboardData,
+        onError,
+        onWarning,
+        onInfo,
+        onWsOpen,
+        onPngFrame: onPngFrame(), // for buffered rendering
+        onBmpFrame: onBmpFrame(),
+        onScreenSpec,
+        onPointer,
+        onWsClose,
+      });
     }
     // TODO (avatus) : fix this
     // eslint-disable-next-line
-  }, [tdpClient, addr]);
+  }, [addr]);
 
   const sendLocalClipboardToRemote = async (cli: TdpClient) => {
     if (await sysClipboardGuard(clipboardSharingState, 'read')) {
@@ -366,7 +450,7 @@ export default function useDesktopSession() {
     }
   };
 
-  const webauthn = useWebAuthn(tdpClient);
+  const webauthn = useWebAuthn(tdpClient.current);
 
   const onDisconnect = () => {
     setClipboardSharingState(prevState => ({
@@ -377,7 +461,7 @@ export default function useDesktopSession() {
       ...prevState,
       isSharing: false,
     }));
-    tdpClient.shutdown();
+    tdpClient.current.shutdown();
   };
 
   const onShareDirectory = () => {
@@ -390,8 +474,8 @@ export default function useDesktopSession() {
             ...prevState,
             directorySelected: true,
           }));
-          tdpClient.addSharedDirectory(sharedDirHandle);
-          tdpClient.sendSharedDirectoryAnnounce();
+          tdpClient.current.addSharedDirectory(sharedDirHandle);
+          tdpClient.current.sendSharedDirectoryAnnounce();
         })
         .catch(e => {
           setDirectorySharingState(prevState => ({
@@ -438,15 +522,15 @@ export default function useDesktopSession() {
     if (!tdpClient) {
       return;
     }
-    tdpClient.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
-    tdpClient.sendKeyboardInput('AltLeft', ButtonState.DOWN);
-    tdpClient.sendKeyboardInput('Delete', ButtonState.DOWN);
+    tdpClient.current.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
+    tdpClient.current.sendKeyboardInput('AltLeft', ButtonState.DOWN);
+    tdpClient.current.sendKeyboardInput('Delete', ButtonState.DOWN);
   };
 
   const windowOnResize = debounce(
     () => {
       const spec = getDisplaySize();
-      tdpClient.resize(spec);
+      tdpClient.current.resize(spec);
     },
     250,
     { trailing: true }
@@ -455,6 +539,12 @@ export default function useDesktopSession() {
   return {
     webauthn,
     tdpClient,
+    onMouseDown,
+    onKeyDown,
+    onKeyUp,
+    onMouseMove,
+    onMouseUp,
+    onMouseWheelScroll,
     username,
     hostname,
     tdpConnection,

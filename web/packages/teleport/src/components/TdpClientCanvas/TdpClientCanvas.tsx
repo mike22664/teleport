@@ -28,11 +28,10 @@ function TdpClientCanvas(props: Props) {
     onKeyUp,
     onFocusOut,
     onMouseMove,
-    onMouseDown,
+    onMouseDownDS,
     onMouseUp,
     onMouseWheelScroll,
     windowOnResize,
-    onContextMenu,
     style,
   } = props;
 
@@ -53,22 +52,24 @@ function TdpClientCanvas(props: Props) {
     if (!canvas) {
       return;
     }
+
+    console.log('im ruinign on');
     window.addEventListener('resize', windowOnResize);
-    canvas.addEventListener('onmousemove', onMouseMove);
-    canvas.addEventListener('oncontextmenu', onContextMenu);
-    canvas.addEventListener('onmousedown', onMouseDown);
-    canvas.addEventListener('onmouseup', onMouseUp);
-    canvas.addEventListener('onwheel', onMouseWheelScroll);
-    canvas.addEventListener('onkeydown', onKeyDown);
-    canvas.addEventListener('onkeyup', onKeyUp);
+    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.oncontextmenu = _contextMenu;
+    canvas.addEventListener('mousedown', onMouseDownDS);
+    canvas.addEventListener('mouseup', onMouseUp);
+    canvas.addEventListener('wheel', onMouseWheelScroll);
+    canvas.addEventListener('keydown', onKeyDown);
+    canvas.addEventListener('keyup', onKeyUp);
     canvas.addEventListener('focusout', onFocusOut);
 
     return () => {
       console.log('!!!!canvas cleaning up!!!!!');
       window.removeEventListener('resize', windowOnResize);
       canvas.removeEventListener('mousemove', onMouseMove);
-      canvas.removeEventListener('contextmenu', onContextMenu);
-      canvas.removeEventListener('mousedown', onMouseDown);
+      canvas.removeEventListener('contextmenu', _contextMenu);
+      canvas.removeEventListener('mousedown', onMouseDownDS);
       canvas.removeEventListener('mouseup', onMouseUp);
       canvas.removeEventListener('wheel', onMouseWheelScroll);
       canvas.removeEventListener('keydown', onKeyDown);
@@ -101,7 +102,7 @@ export type Props = {
   onKeyUp?: (e: KeyboardEvent) => any;
   onFocusOut?: () => any;
   onMouseMove?: (e: MouseEvent) => any;
-  onMouseDown?: (e: MouseEvent) => any;
+  onMouseDownDS?: (e: MouseEvent) => any;
   onMouseUp?: (e: MouseEvent) => any;
   onMouseWheelScroll?: (e: WheelEvent) => any;
   onContextMenu?: () => boolean;
@@ -111,3 +112,7 @@ export type Props = {
 };
 
 export default memo(TdpClientCanvas);
+
+function _contextMenu() {
+  return false;
+}

@@ -60,6 +60,12 @@ export function DesktopSession(props: State) {
     username,
     hostname,
     tdpConnection,
+    onMouseDown,
+    onMouseWheelScroll,
+    onKeyDown,
+    onKeyUp,
+    onMouseUp,
+    onMouseMove,
     onCtrlAltDel,
     alerts,
     onRemoveAlert,
@@ -93,12 +99,12 @@ export function DesktopSession(props: State) {
   // Call connect after all listeners have been registered
   useEffect(() => {
     if (tdpClient && screenState.canvasState.shouldConnect) {
-      tdpClient.connect(getDisplaySize());
+      tdpClient.current.connect(getDisplaySize());
       return () => {
-        tdpClient.shutdown();
+        tdpClient.current.shutdown();
       };
     }
-  }, [tdpClient, screenState.canvasState.shouldConnect]);
+  }, [screenState.canvasState.shouldConnect]);
 
   return (
     <Flex flexDirection="column">
@@ -126,9 +132,14 @@ export function DesktopSession(props: State) {
 
       <TdpClientCanvas
         {...clientCanvasProps}
-        canvasRef={clientCanvasProps.canvasRef}
+        onMouseWheelScroll={onMouseWheelScroll}
+        onMouseUp={onMouseUp}
+        onMouseMove={onMouseMove}
+        onKeyDown={onKeyDown}
+        onKeyUp={onKeyUp}
+        onMouseDownDS={onMouseDown}
         style={{
-          display: screenState.canvasState.shouldDisplay ? 'flex' : 'none',
+          display: 'flex',
         }}
       />
     </Flex>
