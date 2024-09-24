@@ -20,6 +20,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useCallback,
   useMemo,
   Dispatch,
   SetStateAction,
@@ -89,7 +90,7 @@ export default function useDesktopSession() {
   const tdpClient = useRef<TdpClient>(null);
   const clientCanvasProps = useTdpClientCanvas(tdpClient.current);
 
-  const onMouseDown = (e: MouseEvent) => {
+  const onMouseDown = useCallback((e: MouseEvent) => {
     if (e.button === 0 || e.button === 1 || e.button === 2) {
       tdpClient.current.sendMouseButton(e.button, ButtonState.DOWN);
     }
@@ -99,9 +100,9 @@ export default function useDesktopSession() {
     // // transient user activation is in effect.
     // // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
     // sendLocalClipboardToRemote(cli);
-  };
+  }, []);
 
-  const onMouseWheelScroll = (e: WheelEvent) => {
+  const onMouseWheelScroll = useCallback((e: WheelEvent) => {
     e.preventDefault();
     // We only support pixel scroll events, not line or page events.
     // https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent/deltaMode
@@ -116,26 +117,29 @@ export default function useDesktopSession() {
         tdpClient.current.sendMouseWheelScroll(ScrollAxis.VERTICAL, -e.deltaY);
       }
     }
-  };
+  }, []);
 
-  const onMouseUp = (e: MouseEvent) => {
+  const onMouseUp = useCallback((e: MouseEvent) => {
     if (e.button === 0 || e.button === 1 || e.button === 2) {
       tdpClient.current.sendMouseButton(e.button, ButtonState.UP);
     }
-  };
+  }, []);
 
-  const onMouseMove = (e: MouseEvent) => {
-    const canvas = clientCanvasProps.canvasRef.current;
-    if (!tdpClient.current || !canvas) {
-      return;
-    }
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    tdpClient.current.sendMouseMove(x, y);
-  };
+  const onMouseMove = useCallback(
+    (e: MouseEvent) => {
+      const canvas = clientCanvasProps.canvasRef.current;
+      if (!tdpClient.current || !canvas) {
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      tdpClient.current.sendMouseMove(x, y);
+    },
+    [clientCanvasProps.canvasRef]
+  );
 
-  const onKeyDown = (e: KeyboardEvent) => {
+  const onKeyDown = useCallback((e: KeyboardEvent) => {
     keyboardHandler.current.handleKeyboardEvent({
       cli: tdpClient.current,
       e,
@@ -151,15 +155,15 @@ export default function useDesktopSession() {
     // if (e.key !== 'Meta' && e.key !== 'Alt' && e.key !== 'Escape') {
     //   onKeyDown();
     // }
-  };
+  }, []);
 
-  const onKeyUp = (e: KeyboardEvent) => {
+  const onKeyUp = useCallback((e: KeyboardEvent) => {
     keyboardHandler.current.handleKeyboardEvent({
       cli: tdpClient.current,
       e,
       state: ButtonState.UP,
     });
-  };
+  }, []);
 
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
 
@@ -319,12 +323,6 @@ export default function useDesktopSession() {
         for (let i = 0; i < bmpBuffer.length; i++) {
           // not sure why we sync the canvas during first frame when it doesn't seem
           // to care about any of the frame data at all? and we sync canvas
-          if (!tdpConnection.receivedFirstFrame) {
-            setTdpConnection(prevState => ({
-              ...prevState,
-              receivedFirstFrame: true,
-            }));
-          }
           const bmpFrame = bmpBuffer[i];
           if (ctx && bmpFrame.image_data.data.length != 0) {
             ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
@@ -518,13 +516,22 @@ export default function useDesktopSession() {
     }
   };
 
-  const onCtrlAltDel = () => {
+  const onCtrlAltDel = useCallback(() => {
     if (!tdpClient) {
       return;
     }
     tdpClient.current.sendKeyboardInput('ControlLeft', ButtonState.DOWN);
     tdpClient.current.sendKeyboardInput('AltLeft', ButtonState.DOWN);
     tdpClient.current.sendKeyboardInput('Delete', ButtonState.DOWN);
+  }, []);
+
+  window['displaySize'] = () => {
+    console.log(
+      'canvasSize',
+      clientCanvasProps.canvasRef.current.width,
+      clientCanvasProps.canvasRef.current.height
+    );
+    console.log(getDisplaySize());
   };
 
   const windowOnResize = debounce(

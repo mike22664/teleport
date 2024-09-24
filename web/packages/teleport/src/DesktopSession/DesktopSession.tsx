@@ -74,6 +74,7 @@ export function DesktopSession(props: State) {
     clipboardSharingState,
     directorySharingState,
     clientCanvasProps,
+    windowOnResize,
     fetchAttempt,
     showAnotherSessionActiveDialog,
   } = props;
@@ -135,6 +136,7 @@ export function DesktopSession(props: State) {
         onMouseWheelScroll={onMouseWheelScroll}
         onMouseUp={onMouseUp}
         onMouseMove={onMouseMove}
+        windowOnResize={windowOnResize}
         onKeyDown={onKeyDown}
         onKeyUp={onKeyUp}
         onMouseDownDS={onMouseDown}

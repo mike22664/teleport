@@ -384,6 +384,8 @@ export default class Client extends EventEmitterWebAuthnSender {
         rdpFastPathPDU,
         this,
         (bmpFrame: BitmapFrame) => {
+          // console.log('fpp', this.fastPathProcessor.image);
+          // debugger;
           // this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
           this.eventHandlers.onBmpFrame?.(bmpFrame);
         },

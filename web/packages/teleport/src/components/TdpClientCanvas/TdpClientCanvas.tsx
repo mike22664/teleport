@@ -53,8 +53,10 @@ function TdpClientCanvas(props: Props) {
       return;
     }
 
+    const _resize = () => windowOnResize();
+
     console.log('im ruinign on');
-    window.addEventListener('resize', windowOnResize);
+    window.addEventListener('resize', _resize);
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.oncontextmenu = _contextMenu;
     canvas.addEventListener('mousedown', onMouseDownDS);
@@ -66,7 +68,7 @@ function TdpClientCanvas(props: Props) {
 
     return () => {
       console.log('!!!!canvas cleaning up!!!!!');
-      window.removeEventListener('resize', windowOnResize);
+      window.removeEventListener('resize', _resize);
       canvas.removeEventListener('mousemove', onMouseMove);
       canvas.removeEventListener('contextmenu', _contextMenu);
       canvas.removeEventListener('mousedown', onMouseDownDS);

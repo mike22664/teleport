@@ -59,14 +59,14 @@ export default function useTdpClientCanvas(cli: TdpClient) {
     canvas.style.height = `${height}px`;
   };
 
-  const onFocusOut = () => {
-    keyboardHandler.current.onFocusOut();
-  };
+  // const onFocusOut = () => {
+  //   keyboardHandler.current.onFocusOut();
+  // };
 
   return {
     syncCanvas,
     canvasRef,
-    onFocusOut,
+    // onFocusOut,
   };
 }
 
