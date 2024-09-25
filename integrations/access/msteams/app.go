@@ -54,7 +54,6 @@ type App struct {
 	mainJob    lib.ServiceJob
 	watcherJob lib.ServiceJob
 	pd         *pd.CompareAndSwap[PluginData]
-
 	log                   *slog.Logger
 	accessMonitoringRules *accessmonitoring.RuleHandler
 
@@ -88,6 +87,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	a.Process = lib.NewProcess(ctx)
+	a.watcherJob, err = a.newWatcherJob(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -212,9 +212,6 @@ func (a *App) initBot(ctx context.Context) error {
 
 // run starts the main process
 func (a *App) run(ctx context.Context) error {
-
-	process := lib.MustGetProcess(ctx)
-
 	watchKinds := []types.WatchKind{
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAccessMonitoringRule},
@@ -237,6 +234,7 @@ func (a *App) run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
+	process := lib.MustGetProcess(ctx)
 	process.SpawnCriticalJob(watcherJob)
 
 	ok, err := watcherJob.WaitReady(ctx)
@@ -530,7 +528,6 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	// We receive a set from GetRawRecipientsFor but we still might end up with duplicate channel names.
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := stringset.New()
-
 	a.log.DebugContext(ctx, "Getting suggested reviewer recipients")
 	accessRuleRecipients := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
 	accessRuleRecipients.ForEach(func(r common.Recipient) {
