@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 
-import { TdpClient, ButtonState, ScrollAxis } from 'teleport/lib/tdp';
+import { TdpClient } from 'teleport/lib/tdp';
 import { ClientScreenSpec } from 'teleport/lib/tdp/codec';
-
-import { KeyboardHandler } from './KeyboardHandler';
 
 declare global {
   interface Navigator {
@@ -29,18 +27,7 @@ declare global {
   }
 }
 
-export default function useTdpClientCanvas(cli: TdpClient) {
-  // const {
-  //   username,
-  //   desktopName,
-  //   clusterId,
-  //   setTdpConnection,
-  //   clipboardSharingState,
-  //   setClipboardSharingState,
-  //   setDirectorySharingState,
-  //   setAlerts,
-  // } = props;
-
+export default function useTdpClientCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   /**
@@ -59,6 +46,7 @@ export default function useTdpClientCanvas(cli: TdpClient) {
     canvas.style.height = `${height}px`;
   };
 
+  // TODO: restore this
   // const onFocusOut = () => {
   //   keyboardHandler.current.onFocusOut();
   // };
@@ -66,17 +54,5 @@ export default function useTdpClientCanvas(cli: TdpClient) {
   return {
     syncCanvas,
     canvasRef,
-    // onFocusOut,
   };
 }
-
-// type Props = {
-//   username: string;
-//   desktopName: string;
-//   clusterId: string;
-//   setTdpConnection: Setter<Attempt>;
-//   clipboardSharingState: ClipboardSharingState;
-//   setClipboardSharingState: Setter<ClipboardSharingState>;
-//   setDirectorySharingState: Setter<DirectorySharingState>;
-//   setAlerts: Setter<NotificationItem[]>;
-// };

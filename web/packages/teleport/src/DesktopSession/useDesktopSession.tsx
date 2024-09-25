@@ -63,6 +63,12 @@ export default function useDesktopSession() {
   const { attempt: fetchAttempt, run } = useAttempt('processing');
   const latestClipboardDigest = useRef('');
   const encoder = useRef(new TextEncoder());
+
+  // tdpConnection tracks the state of the tdpClient's TDP connection
+  // - 'processing' at first
+  // - 'success' once the first TdpClientEvent.IMAGE_FRAGMENT is seen
+  // - 'failed' if a fatal error is encountered, should have a statusText
+  // - '' if the connection closed gracefully by the server, should have a statusText
   const [tdpConnection, setTdpConnection] = useState<TdpConnection>({
     status: '',
     statusText: '',
@@ -79,16 +85,8 @@ export default function useDesktopSession() {
     };
   }, []);
 
-  // // tdpConnection tracks the state of the tdpClient's TDP connection
-  // // - 'processing' at first
-  // // - 'success' once the first TdpClientEvent.IMAGE_FRAGMENT is seen
-  // // - 'failed' if a fatal error is encountered, should have a statusText
-  // // - '' if the connection closed gracefully by the server, should have a statusText
-  // const { attempt: tdpConnection, setAttempt: setTdpConnection } =
-  //   useAttempt('processing');
-  // const [tdpClient, setTdpClient] = useState<TdpClient>(null);
   const tdpClient = useRef<TdpClient>(null);
-  const clientCanvasProps = useTdpClientCanvas(tdpClient.current);
+  const clientCanvasProps = useTdpClientCanvas();
 
   const onMouseDown = useCallback((e: MouseEvent) => {
     if (e.button === 0 || e.button === 1 || e.button === 2) {
@@ -249,7 +247,6 @@ export default function useDesktopSession() {
     }
   };
 
-  // example of pulling client and canvas out of tdpclientcanvas
   const onScreenSpec = (spec: ClientScreenSpec) => {
     clientCanvasProps.syncCanvas(spec);
   };
@@ -321,8 +318,6 @@ export default function useDesktopSession() {
     const renderBuffer = () => {
       if (bmpBuffer.length) {
         for (let i = 0; i < bmpBuffer.length; i++) {
-          // not sure why we sync the canvas during first frame when it doesn't seem
-          // to care about any of the frame data at all? and we sync canvas
           const bmpFrame = bmpBuffer[i];
           if (ctx && bmpFrame.image_data.data.length != 0) {
             ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
@@ -409,9 +404,8 @@ export default function useDesktopSession() {
       context.drawImage(cursor, 0, 0);
       cursor = resized;
     }
-    canvas.style.cursor = `url(${cursor.toDataURL()}) ${
-      pointer.hotspot_x
-    } ${pointer.hotspot_y}, auto`;
+    canvas.style.cursor = `url(${cursor.toDataURL()}) ${pointer.hotspot_x
+      } ${pointer.hotspot_y}, auto`;
   };
 
   useEffect(() => {
@@ -524,15 +518,6 @@ export default function useDesktopSession() {
     tdpClient.current.sendKeyboardInput('AltLeft', ButtonState.DOWN);
     tdpClient.current.sendKeyboardInput('Delete', ButtonState.DOWN);
   }, []);
-
-  window['displaySize'] = () => {
-    console.log(
-      'canvasSize',
-      clientCanvasProps.canvasRef.current.width,
-      clientCanvasProps.canvasRef.current.height
-    );
-    console.log(getDisplaySize());
-  };
 
   const windowOnResize = debounce(
     () => {
