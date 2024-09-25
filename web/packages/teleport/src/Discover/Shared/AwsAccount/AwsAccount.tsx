@@ -70,7 +70,11 @@ export function AwsAccount() {
     eventState,
     resourceSpec,
     currentStep,
+    emitErrorEvent,
   } = useDiscover();
+
+  const [selectedAwsIntegration, setSelectedAwsIntegration] =
+    useState<Option>();
 
   // if true, requires an additional step where we fetch for
   // apps matching fetched aws integrations to determine
@@ -97,6 +101,26 @@ export function AwsAccount() {
       }
       return response;
     }, [clusterId, isAddingAwsApp])
+  );
+
+  const [healthCheckAttempt, healthCheckSelectedIntegration] = useAsync(
+    useCallback(async () => {
+      console.log('--- here????');
+      try {
+        const resp = await integrationService.pingAwsOidcIntegration({
+          clusterId,
+          integrationName: selectedAwsIntegration.value.name,
+        });
+        console.log('--- after try???', resp);
+        return true;
+      } catch (err) {
+        console.log('---- error here?: ', err);
+        emitErrorEvent(
+          `failed to health check selected aws integration: ${err}`
+        );
+        throw err;
+      }
+    }, [selectedAwsIntegration, clusterId])
   );
 
   const integrationAccess = storeUser.getIntegrationsAccess();
@@ -136,9 +160,6 @@ export function AwsAccount() {
       appAccess.list &&
       appAccess.read;
   }
-
-  const [selectedAwsIntegration, setSelectedAwsIntegration] =
-    useState<Option>();
 
   useEffect(() => {
     if (hasAccess && attempt.status === '') {
@@ -193,8 +214,13 @@ export function AwsAccount() {
     );
   }
 
-  function proceedWithExistingIntegration(validator: Validator) {
+  async function proceedWithExistingIntegration(validator: Validator) {
     if (!validator.validate()) {
+      return;
+    }
+
+    const [, err] = await healthCheckSelectedIntegration();
+    if (err) {
       return;
     }
 
@@ -250,6 +276,12 @@ export function AwsAccount() {
   return (
     <Box maxWidth="700px">
       <Heading />
+      {healthCheckAttempt.status === 'error' && (
+        <Alert
+          kind="danger"
+          children={`Health check failed for the selected AWS integration: ${healthCheckAttempt.statusText}`}
+        />
+      )}
       <Box mb={3}>
         <Validation>
           {({ validator }) => (
@@ -289,7 +321,11 @@ export function AwsAccount() {
               <ActionButtons
                 onPrev={prevStep}
                 onProceed={() => proceedWithExistingIntegration(validator)}
-                disableProceed={!hasAwsIntegrations || !selectedAwsIntegration}
+                disableProceed={
+                  !hasAwsIntegrations ||
+                  !selectedAwsIntegration ||
+                  healthCheckAttempt.status === 'processing'
+                }
               />
             </>
           )}

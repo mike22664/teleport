@@ -205,7 +205,7 @@ test('edit submit called with proper fields', async () => {
   await userEvent.click(screen.getByRole('button', { name: /save/i }));
   await waitFor(() => expect(mockEditFn).toHaveBeenCalledTimes(1));
 
-  expect(mockEditFn).toHaveBeenCalledWith({
+  expect(mockEditFn).toHaveBeenCalledWith(integration, {
     roleArn: 'arn:aws:iam::123456789011:role/other',
   });
 });

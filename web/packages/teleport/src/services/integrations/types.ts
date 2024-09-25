@@ -69,6 +69,21 @@ export type IntegrationSpecAwsOidc = {
   issuerS3Bucket?: string;
 };
 
+export type AWSOIDCPingResponse = {
+  /**
+   * number of the account that owns or contains the calling entity
+   */
+  accountId: string;
+  /**
+   * associated with the calling entity
+   */
+  arn: string;
+  /**
+   * the unique identifier of the calling entity
+   */
+  userId: string;
+};
+
 export enum IntegrationStatusCode {
   Unknown = 0,
   Running = 1,

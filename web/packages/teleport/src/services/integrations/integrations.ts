@@ -56,6 +56,7 @@ import {
   ListAwsSubnetsResponse,
   Subnet,
   AwsDatabaseVpcsResponse,
+  AWSOIDCPingResponse,
 } from './types';
 
 export const integrationService = {
@@ -75,6 +76,13 @@ export const integrationService = {
 
   createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
     return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
+  },
+
+  pingAwsOidcIntegration(params: {
+    integrationName: string;
+    clusterId: string;
+  }): Promise<AWSOIDCPingResponse> {
+    return api.post(cfg.getPingAwsOidcIntegrationUrl(params));
   },
 
   updateIntegration(

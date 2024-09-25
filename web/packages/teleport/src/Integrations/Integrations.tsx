@@ -61,7 +61,10 @@ export function Integrations() {
     });
   }
 
-  function editIntegration(req: EditableIntegrationFields) {
+  function editIntegration(
+    integration: Integration,
+    req: EditableIntegrationFields
+  ) {
     return integrationOps.edit(req).then(updatedIntegration => {
       const updatedItems = items.map(item => {
         if (item.name == integrationOps.item.name) {
