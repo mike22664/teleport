@@ -29,6 +29,8 @@ import {
 } from 'teleport/Discover/Shared/SetupAccess';
 
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
+import { NodeMeta } from 'teleport/Discover/useDiscover';
+import { LabelCell } from 'design/DataTable';
 
 export default function Container() {
   const state = useUserTraits();
@@ -121,6 +123,10 @@ export function SetupAccess(props: State) {
           options={getSelectableOptions('logins')}
         />
       </Box>
+      <Text mb={3}>
+        We found the following linux users, make sure to include them above so that you can access them.
+      </Text>
+      <LabelCell data={(agentMeta as NodeMeta).node.osLogins} />
     </SetupAccessWrapper>
   );
 }

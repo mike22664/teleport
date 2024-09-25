@@ -56,7 +56,7 @@ type Watcher struct {
 	logger       *slog.Logger
 	clock        clockwork.Clock
 	hostID       string
-	getHostUsers func() ([]user.User, error)
+	getHostUsers func() ([]UserWithShell, error)
 }
 
 // ClusterClient is the client to use to communicate with the cluster.
@@ -81,7 +81,7 @@ type WatcherConfig struct {
 	// getHostUsers is a function that returns the list of users on the system.
 	// used for testing purposes. When nil, it uses the default implementation
 	// that leverages getpwent.
-	getHostUsers func() ([]user.User, error)
+	getHostUsers func() ([]UserWithShell, error)
 }
 
 // NewWatcher creates a new Watcher instance.
@@ -107,7 +107,7 @@ func NewWatcher(ctx context.Context, config WatcherConfig) (*Watcher, error) {
 		config.Clock = clockwork.NewRealClock()
 	}
 	if config.getHostUsers == nil {
-		config.getHostUsers = getHostUsers
+		config.getHostUsers = GetHostUsers
 	}
 
 	w := &Watcher{
@@ -258,7 +258,7 @@ func (w *Watcher) fetchAndReportAuthorizedKeys(
 				continue
 			}
 
-			hostKeys, err := w.parseAuthorizedKeysFile(ctx, u, authorizedKeysPath)
+			hostKeys, err := w.parseAuthorizedKeysFile(ctx, u.User, authorizedKeysPath)
 			if errors.Is(err, os.ErrNotExist) {
 				continue
 			} else if err != nil {

@@ -33,6 +33,8 @@ export default function makeNode(json: any): Node {
     requiresRequest,
   } = json;
 
+  const osLogins = tags.find(t=>(t.name === 'teleport.dev/interactive_logins')).value.split(',');
+
   return {
     kind: 'node',
     id,
@@ -45,6 +47,7 @@ export default function makeNode(json: any): Node {
     requiresRequest,
     sshLogins: sshLogins ?? [],
     awsMetadata: aws ? makeAwsMetadata(aws) : undefined,
+    osLogins: osLogins ?? [],
   };
 }
 

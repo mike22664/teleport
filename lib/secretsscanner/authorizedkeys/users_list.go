@@ -31,13 +31,21 @@ import (
 	"strconv"
 )
 
+type UserWithShell struct {
+	user.User
+	Shell string
+}
+
 // passwdC2Go converts `passwd` struct from C to golang native struct
-func passwdC2Go(passwdC *C.struct_passwd) user.User {
-	return user.User{
-		Name:     C.GoString(passwdC.pw_name),
-		Username: C.GoString(passwdC.pw_name),
-		Uid:      strconv.FormatUint(uint64(passwdC.pw_uid), 10),
-		Gid:      strconv.FormatUint(uint64(passwdC.pw_gid), 10),
-		HomeDir:  C.GoString(passwdC.pw_dir),
+func passwdC2Go(passwdC *C.struct_passwd) UserWithShell {
+	return UserWithShell{
+		User: user.User{
+			Name:     C.GoString(passwdC.pw_name),
+			Username: C.GoString(passwdC.pw_name),
+			Uid:      strconv.FormatUint(uint64(passwdC.pw_uid), 10),
+			Gid:      strconv.FormatUint(uint64(passwdC.pw_gid), 10),
+			HomeDir:  C.GoString(passwdC.pw_dir),
+		},
+		Shell: C.GoString(passwdC.pw_shell),
 	}
 }

@@ -30,14 +30,12 @@ package authorizedkeys
 import "C"
 
 import (
-	"os/user"
-
 	"github.com/gravitational/trace"
 )
 
 // getHostUsers returns a list of all users on the host
 // from local /etc/passwd file, LDAP, or other user databases.
-func getHostUsers() (results []user.User, _ error) {
+func GetHostUsers() (results []UserWithShell, _ error) {
 
 	bufSize := C.sysconf(C._SC_GETPW_R_SIZE_MAX)
 	if bufSize == -1 {

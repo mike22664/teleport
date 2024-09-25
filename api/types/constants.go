@@ -1010,6 +1010,11 @@ const (
 	// number to aid future migrations. Label value is expected to be a number.
 	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
 
+	// OSInteractiveLoginsLabel is a label used to identify which logins are present in an SSH Node.
+	// This uses the local /etc/passwd.
+	// OSInteractiveLoginsLabel = TeleportInternalLabelPrefix + "interactive_logins"
+	OSInteractiveLoginsLabel = "teleport.dev/interactive_logins"
+
 	// SystemResource are resources that will be automatically created and overwritten on startup. Users
 	// should not change these resources.
 	SystemResource = "system"

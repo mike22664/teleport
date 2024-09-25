@@ -24,13 +24,9 @@ package authorizedkeys
 */
 import "C"
 
-import (
-	"os/user"
-)
-
 // getHostUsers returns a list of all users on the host
 // from local /etc/passwd file, LDAP, or other user databases.
-func getHostUsers() (results []user.User, _ error) {
+func GetHostUsers() (results []UserWithShell, _ error) {
 	C.setpwent()
 	var result *C.struct_passwd
 	for {

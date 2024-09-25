@@ -32,6 +32,7 @@ import (
 	"os"
 	"os/user"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -61,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	authorizedkeysreporter "github.com/gravitational/teleport/lib/secretsscanner/authorizedkeys"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1032,6 +1034,13 @@ func (s *Server) getStaticLabels() map[string]string {
 		maps.Copy(labels, s.inventoryHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels))
 	}
 
+	logins, err := osLoginUsers()
+	if err != nil {
+		s.Logger.Warningf("Failed to get os login users: %v", err)
+	}
+
+	labels[types.OSInteractiveLoginsLabel] = strings.Join(logins, ",")
+
 	// Let static labels override any other labels.
 	maps.Copy(labels, s.labels)
 
@@ -1091,6 +1100,23 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 	srv.SetPublicAddrs(utils.NetAddrsToStrings(s.publicAddrs))
 
 	return srv
+}
+
+func osLoginUsers() ([]string, error) {
+	hostUsers, err := authorizedkeys.GetHostUsers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var logins []string
+	for _, hostUser := range hostUsers {
+		if hostUser.Shell == "" || strings.HasSuffix(hostUser.Shell, "/nologin") || strings.HasSuffix(hostUser.Shell, "/false") {
+			continue
+		}
+		logins = append(logins, hostUser.Shell)
+	}
+
+	sort.Strings(logins)
+	return logins, nil
 }
 
 func (s *Server) getServerInfo(context.Context) (*types.ServerV2, error) {
