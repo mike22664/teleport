@@ -110,6 +110,7 @@ export function AwsAccount() {
         const resp = await integrationService.pingAwsOidcIntegration({
           clusterId,
           integrationName: selectedAwsIntegration.value.name,
+          arn: '',
         });
         console.log('--- after try???', resp);
         return true;

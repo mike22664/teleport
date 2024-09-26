@@ -38,6 +38,7 @@ import type { WebauthnAssertionResponse } from './services/auth';
 import type { PluginKind, Regions } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 import type { YamlSupportedResourceKind } from './services/yaml/types';
+import { arTN } from 'date-fns/locale';
 
 const cfg = {
   /** @deprecated Use cfg.edition instead. */
@@ -303,7 +304,7 @@ const cfg = {
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
     thumbprintPath: '/v1/webapi/thumbprint',
     pingAwsOidcIntegrationPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping?arn=:arn',
 
     awsConfigureIamScriptOidcIdpPath:
       '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
@@ -907,14 +908,19 @@ const cfg = {
   getPingAwsOidcIntegrationUrl({
     integrationName,
     clusterId,
+    arn,
   }: {
     integrationName: string;
     clusterId: string;
+    arn: string;
   }) {
-    return generatePath(cfg.api.pingAwsOidcIntegrationPath, {
+    let x = generatePath(cfg.api.pingAwsOidcIntegrationPath, {
       clusterId,
       name: integrationName,
+      arn: arn,
     });
+    console.log(x, arn);
+    return x;
   },
 
   getAwsRdsDbListUrl(integrationName: string) {

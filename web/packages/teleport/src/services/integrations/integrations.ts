@@ -81,6 +81,7 @@ export const integrationService = {
   pingAwsOidcIntegration(params: {
     integrationName: string;
     clusterId: string;
+    arn: string;
   }): Promise<AWSOIDCPingResponse> {
     return api.post(cfg.getPingAwsOidcIntegrationUrl(params));
   },
