@@ -222,7 +222,7 @@ func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p htt
 
 	startKey := values.Get("startKey")
 
-	igs, nextKey, err := clt.ListIntegrations(r.Context(), int(limit), startKey)
+	igs, nextKey, err := clt.ListIntegrations(r.Context(), int(limit), startKey, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

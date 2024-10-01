@@ -1501,13 +1501,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 					continue
 				}
 				r.Logins = logins
-			} else if gitServer := r.GetGitServer(); gitServer != nil {
-				logins, err := checker.GetAllowedLoginsForResource(gitServer)
-				if err != nil {
-					log.WithError(err).WithField("resource", gitServer.GetName()).Warn("Unable to determine logins for git_server")
-					continue
-				}
-				r.Logins = logins
 			}
 		}
 	}
@@ -4113,6 +4106,79 @@ func (a *ServerWithRoles) CreateGithubAuthRequest(ctx context.Context, req types
 	}
 
 	return githubReq, nil
+}
+
+func (a *ServerWithRoles) getGithubServers(ctx context.Context, org string) (types.Server, error) {
+	resources, err := client.GetAllUnifiedResources(ctx, a, &proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{types.KindGitServer},
+		SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+		PredicateExpression: fmt.Sprintf("resource.spec.github.organization == \"%s\"", org),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, resource := range resources {
+		server, ok := resource.ResourceWithLabels.(types.Server)
+		if !ok {
+			// TODO log a warning
+			continue
+		}
+		if github := server.GetGitHub(); github != nil {
+			if github.Organization == org && github.Integration != "" {
+				return server, nil
+			}
+		}
+	}
+	return nil, trace.NotFound("no git server found for github organization %s", org)
+}
+
+// TODO
+func (a *ServerWithRoles) CreateGithubAuthRequestForUser(ctx context.Context, req *proto.CreateGithubAuthRequestForUserRequest) (*types.GithubAuthRequest, error) {
+	if req.CertRequest == nil {
+		return nil, trace.BadParameter("missing cert request")
+	}
+	org := req.CertRequest.RouteToGitServer.GitHubOrganization
+	if org == "" {
+		return nil, trace.BadParameter("one of github organization or connector id must be provided")
+	}
+
+	githubServer, err := a.getGithubServers(ctx, org)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get github server")
+	}
+
+	integration, err := a.authServer.GetIntegration(ctx, githubServer.GetGitHub().Integration, false)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to find integration")
+	}
+
+	githubIntegrationSpec := integration.GetGitHubIntegrationSpec()
+	if githubIntegrationSpec == nil || githubIntegrationSpec.ConnectorId == "" {
+		return nil, trace.BadParameter("invalid github integration %s", githubServer.GetGitHub().Integration)
+	}
+
+	authRequest := types.GithubAuthRequest{
+		ConnectorID:             githubIntegrationSpec.ConnectorId,
+		CertTTL:                 a.context.Identity.GetIdentity().Expires.Sub(a.authServer.clock.Now()), // TODO validate?
+		ClientRedirectURL:       req.RedirectUrl,
+		AuthenticatedUser:       a.context.User.GetName(),
+		ClientLoginIP:           a.context.Identity.GetIdentity().LoginIP,
+		KubernetesCluster:       req.CertRequest.KubernetesCluster,
+		SshPublicKey:            req.CertRequest.SSHPublicKey,
+		TlsPublicKey:            req.CertRequest.TLSPublicKey,
+		SshAttestationStatement: req.CertRequest.SSHPublicKeyAttestationStatement,
+		TlsAttestationStatement: req.CertRequest.TLSPublicKeyAttestationStatement,
+		Compatibility:           req.CertRequest.Format,
+	}
+	resp, err := a.authServer.CreateGithubAuthRequest(ctx, authRequest)
+	if err != nil {
+		// TODO emit something else
+		// emitSSOLoginFailureEvent(a.authServer.closeCtx, a.authServer.emitter, events.LoginMethodGithub, err, req.SSOTestFlow)
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
 }
 
 // GetGithubAuthRequest returns Github auth request if found.
