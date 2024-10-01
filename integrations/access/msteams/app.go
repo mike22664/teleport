@@ -87,7 +87,6 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	a.Process = lib.NewProcess(ctx)
-	a.watcherJob, err = a.newWatcherJob(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -145,7 +144,7 @@ func (a *App) init(ctx context.Context) error {
 		webProxyAddr = pong.ProxyPublicAddr
 	}
 
-	a.bot, err = NewBot(a.conf.MSAPI, pong.ClusterName, webProxyAddr, a.log)
+	a.bot, err = NewBot(a.conf.MSAPI, pong.ClusterName, webProxyAddr, a.log, a.conf.StatusSink)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -184,6 +183,8 @@ func (a *App) initBot(ctx context.Context) error {
 	a.log.InfoContext(ctx, "MS Teams app found in org app store",
 		"name", teamsApp.DisplayName,
 		"id", teamsApp.ID)
+
+	a.bot.CheckHealth(ctx)
 
 	if !a.conf.Preload {
 		return nil
