@@ -1,44 +1,94 @@
----
-name: Flaky Test ❄
-about: Report a flaky unit or integration test
-title: "`TestName` flakiness"
-labels: flaky tests
----
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/configuring-issue-templates-for-your-repository#creating-issue-forms
+# https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-githubs-form-schema
+name: Bugs
+description: The go command, standard library, or anything else
+title: "import/path: issue title"
 
-## Before submitting a new issue
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping us improve! 🙏 Please answer these questions and provide as much information as possible about your problem.
 
-Before filing a new issue, search https://github.com/gravitational/teleport/issues?q=is%3Aissue+label%3A%22flaky+tests%22+ for
-the flaky test's name to see if the same issue has already been reported.
+  - type: input
+    id: go-version
+    attributes:
+      label: Go version
+      description: |
+        What version of Go are you using (`go version`)?
 
-If so, add a comment with the `Link(s) to logs` url (see section below). Double check the `Relevant snippet` to confirm that the specific failure is the same.
-If you've encountered a new failure for the same test, also copy-paste the `Relevant snippet` (see section below).
+        Note: we only [support](https://go.dev/doc/devel/release#policy) the two most recent major releases.
+      placeholder: ex. go version go1.20.7 darwin/arm64
+    validations:
+      required: true
 
-If there's no existing issue for this test, continue to file a new one:
+  - type: textarea
+    id: go-env
+    attributes:
+      label: "Output of `go env` in your module/workspace:"
+      placeholder: |
+        GO111MODULE=""
+        GOARCH="arm64"
+        GOBIN="/Users/gopher/go/bin"
+        GOCACHE="/Users/gopher/go/cache"
+        GOENV="/Users/gopher/Library/Application Support/go/env"
+        GOEXE=""
+        GOEXPERIMENT=""
+        GOFLAGS=""
+        GOHOSTARCH="arm64"
+        GOHOSTOS="darwin"
+        GOINSECURE=""
+        GOMODCACHE="/Users/gopher/go/pkg/mod"
+        GONOPROXY=""
+        GONOSUMDB=""
+        GOOS="darwin"
+        GOPATH="/Users/gopher/go"
+        GOPRIVATE=""
+        GOPROXY="https://proxy.golang.org,direct"
+        GOROOT="/usr/local/go"
+        GOSUMDB="sum.golang.org"
+        GOTMPDIR=""
+        GOTOOLDIR="/usr/local/go/pkg/tool/darwin_arm64"
+        GOVCS=""
+        GOVERSION="go1.20.7"
+        GCCGO="gccgo"
+        AR="ar"
+        CC="clang"
+        CXX="clang++"
+        CGO_ENABLED="1"
+        GOMOD="/dev/null"
+        GOWORK=""
+        CGO_CFLAGS="-O2 -g"
+        CGO_CPPFLAGS=""
+        CGO_CXXFLAGS="-O2 -g"
+        CGO_FFLAGS="-O2 -g"
+        CGO_LDFLAGS="-O2 -g"
+        PKG_CONFIG="pkg-config"
+        GOGCCFLAGS="-fPIC -arch arm64 -pthread -fno-caret-diagnostics -Qunused-arguments -fmessage-length=0 -fdebug-prefix-map=/var/folders/44/nbbyll_10jd0z8rj_qxm43740000gn/T/go-build2331607515=/tmp/go-build -gno-record-gcc-switches -fno-common"
+      render: shell
+    validations:
+      required: true
 
-1. Change `TestName` in the title to the name of the test that failed.
-2. Use `git blame` to try and figure out who is most responsible for the test, and assign them to this issue.
-3. **Delete this entire section and continue**.
+  - type: textarea
+    id: what-did-you-do
+    attributes:
+      label: "What did you do?"
+      description: "If possible, provide a recipe for reproducing the error. A complete runnable program is good. A link on [go.dev/play](https://go.dev/play) is best."
+    validations:
+      required: true
 
-## Failure
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: "What did you see happen?"
+      description: Command invocations and their associated output, functions with their arguments and return results, full stacktraces for panics (upload a file if it is very long), etc. Prefer copying text output over using screenshots.
+    validations:
+      required: true
 
-#### Link(s) to logs
-
-- Update the link below with the similar link to the logs of the test run that failed, **then delete this line**.
-- https://github.com/gravitational/teleport/actions/runs/<run-id>/jobs/<job-id>
-
-#### Relevant snippet
-
-**replace everything below here with your snippet**
-
-Be extra helpful by adding the relevant snippet of the logs that show where the failure takes place. Typically ctrl+F searching for "Test:" will bring you to the right spot.
-If "Test:" doesn't work, try ctrl+F "Fail:".
-
-The example below shows what a typical failure looks like (though sometimes no such log will exist, for example in the case of a timeout).
-
-```
-    tsh_test.go:667:
-        	Error Trace:	tsh_test.go:667
-        	Error:      	Received unexpected error:
-        	            	exit code 1
-        	Test:       	TestSSHAccessRequest
-```
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: "What did you expect to see?"
+      description: Why is the current output incorrect, and any additional context we may need to understand the issue.
+    validations:
+      required: true
