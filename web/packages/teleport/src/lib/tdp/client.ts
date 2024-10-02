@@ -97,6 +97,12 @@ export type TdpClientEventHandlers = {
   onPointer?(pointerData: PointerData): void;
 };
 
+type TdpClientEventHandlerKey = keyof TdpClientEventHandlers;
+type TdpClientEventHandlerFunction<K extends TdpClientEventHandlerKey> =
+  TdpClientEventHandlers[K] extends (...args: any[]) => any
+    ? TdpClientEventHandlers[K]
+    : never;
+
 export enum LogType {
   OFF = 'OFF',
   ERROR = 'ERROR',
@@ -176,6 +182,13 @@ export default class Client extends EventEmitterWebAuthnSender {
       // this.emit(TdpClientEvent.WS_CLOSE, message);
       this.eventHandlers.onWsClose?.(message);
     };
+  }
+
+  public setEventHandler<K extends TdpClientEventHandlerKey>(
+    key: K,
+    handler: TdpClientEventHandlerFunction<K>
+  ) {
+    this.eventHandlers[key] = handler;
   }
 
   private async initWasm() {
@@ -313,10 +326,6 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   handleClipboardData(buffer: ArrayBuffer) {
-    // this.emit(
-    //   TdpClientEvent.TDP_CLIPBOARD_DATA,
-    //   this.codec.decodeClipboardData(buffer)
-    // );
     this.eventHandlers.onClipboardData?.(
       this.codec.decodeClipboardData(buffer)
     );
