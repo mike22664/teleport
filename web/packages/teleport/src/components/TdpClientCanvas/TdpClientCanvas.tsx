@@ -28,7 +28,7 @@ function TdpClientCanvas(props: Props) {
     onKeyUp,
     onFocusOut,
     onMouseMove,
-    onMouseDownDS,
+    onMouseDownDS: onMouseDown,
     onMouseUp,
     onMouseWheelScroll,
     windowOnResize,
@@ -55,11 +55,11 @@ function TdpClientCanvas(props: Props) {
 
     const _resize = () => windowOnResize();
 
-    console.log('im ruinign on');
     window.addEventListener('resize', _resize);
     canvas.addEventListener('mousemove', onMouseMove);
     canvas.oncontextmenu = _contextMenu;
-    canvas.addEventListener('mousedown', onMouseDownDS);
+    canvas.addEventListener('mousedown', onMouseDown);
+    canvas.addEventListener('focusout', onFocusOut);
     canvas.addEventListener('mouseup', onMouseUp);
     canvas.addEventListener('wheel', onMouseWheelScroll);
     canvas.addEventListener('keydown', onKeyDown);
@@ -67,18 +67,28 @@ function TdpClientCanvas(props: Props) {
     canvas.addEventListener('focusout', onFocusOut);
 
     return () => {
-      console.log('!!!!canvas cleaning up!!!!!');
       window.removeEventListener('resize', _resize);
       canvas.removeEventListener('mousemove', onMouseMove);
       canvas.removeEventListener('contextmenu', _contextMenu);
-      canvas.removeEventListener('mousedown', onMouseDownDS);
+      canvas.removeEventListener('focusout', onFocusOut);
+      canvas.removeEventListener('mousedown', onMouseDown);
       canvas.removeEventListener('mouseup', onMouseUp);
       canvas.removeEventListener('wheel', onMouseWheelScroll);
       canvas.removeEventListener('keydown', onKeyDown);
       canvas.removeEventListener('keyup', onKeyUp);
       canvas.removeEventListener('focusout', onFocusOut);
     };
-  }, [canvasRef]);
+  }, [
+    canvasRef,
+    onMouseMove,
+    onKeyDown,
+    onMouseDown,
+    onMouseUp,
+    onMouseWheelScroll,
+    onKeyUp,
+    onFocusOut,
+    windowOnResize,
+  ]);
 
   // useEffect(() => {
   //   if (client) {
