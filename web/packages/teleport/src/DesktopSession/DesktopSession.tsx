@@ -61,6 +61,7 @@ export function DesktopSession(props: State) {
     hostname,
     tdpConnection,
     onMouseDown,
+    onFocusOut,
     onMouseWheelScroll,
     onKeyDown,
     onKeyUp,
@@ -100,12 +101,13 @@ export function DesktopSession(props: State) {
   // Call connect after all listeners have been registered
   useEffect(() => {
     if (tdpClient && screenState.canvasState.shouldConnect) {
-      tdpClient.current.connect(getDisplaySize());
+      const client = tdpClient.current;
+      client.connect(getDisplaySize());
       return () => {
-        tdpClient.current.shutdown();
+        client.shutdown();
       };
     }
-  }, [screenState.canvasState.shouldConnect]);
+  }, [screenState.canvasState.shouldConnect, tdpClient]);
 
   return (
     <Flex flexDirection="column">
@@ -136,6 +138,7 @@ export function DesktopSession(props: State) {
         onMouseWheelScroll={onMouseWheelScroll}
         onMouseUp={onMouseUp}
         onMouseMove={onMouseMove}
+        onFocusOut={onFocusOut}
         windowOnResize={windowOnResize}
         onKeyDown={onKeyDown}
         onKeyUp={onKeyUp}
@@ -337,9 +340,8 @@ const calculateAlertMessage = (
     message = fetchAttempt.statusText || 'fetch attempt failed';
   } else if (tdpConnection.status === 'open') {
     message = tdpConnection.statusText || 'TDP connection failed';
-    // } else if (tdpConnection.status === '') {
-    //   // this is wrong, if its empty it never opened
-    //   message = tdpConnection.statusText || 'TDP connection ended gracefully';
+  } else if (tdpConnection.status === 'closed') {
+    message = tdpConnection.statusText || 'TDP connection ended gracefully';
   } else {
     console.error('invalid state');
     console.error({
