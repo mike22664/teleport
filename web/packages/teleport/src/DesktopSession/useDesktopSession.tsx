@@ -63,6 +63,11 @@ export default function useDesktopSession() {
   const { attempt: fetchAttempt, run } = useAttempt('processing');
   const latestClipboardDigest = useRef('');
   const encoder = useRef(new TextEncoder());
+  const [directorySharingState, setDirectorySharingState] =
+    useState<DirectorySharingState>(defaultDirectorySharingState);
+
+  const [clipboardSharingState, setClipboardSharingState] =
+    useState<ClipboardSharingState>(defaultClipboardSharingState);
 
   // tdpConnection tracks the state of the tdpClient's TDP connection
   // - 'processing' at first
@@ -88,17 +93,34 @@ export default function useDesktopSession() {
   const tdpClient = useRef<TdpClient>(null);
   const clientCanvasProps = useTdpClientCanvas();
 
-  const onMouseDown = useCallback((e: MouseEvent) => {
-    if (e.button === 0 || e.button === 1 || e.button === 2) {
-      tdpClient.current.sendMouseButton(e.button, ButtonState.DOWN);
+  const sendLocalClipboardToRemote = useCallback(async () => {
+    if (await sysClipboardGuard(clipboardSharingState, 'read')) {
+      navigator.clipboard.readText().then(text => {
+        Sha256Digest(text, encoder.current).then(digest => {
+          if (text && digest !== latestClipboardDigest.current) {
+            tdpClient.current?.sendClipboardData({
+              data: text,
+            });
+            latestClipboardDigest.current = digest;
+          }
+        });
+      });
     }
+  }, [clipboardSharingState]);
 
-    // TODO (avatus) : figure out where to call this in client data
-    // // Opportunistically sync local clipboard to remote while
-    // // transient user activation is in effect.
-    // // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-    // sendLocalClipboardToRemote(cli);
-  }, []);
+  const onMouseDown = useCallback(
+    (e: MouseEvent) => {
+      if (e.button === 0 || e.button === 1 || e.button === 2) {
+        tdpClient.current.sendMouseButton(e.button, ButtonState.DOWN);
+      }
+
+      // Opportunistically sync local clipboard to remote while
+      // transient user activation is in effect.
+      // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
+      sendLocalClipboardToRemote();
+    },
+    [sendLocalClipboardToRemote]
+  );
 
   const onMouseWheelScroll = useCallback((e: WheelEvent) => {
     e.preventDefault();
@@ -137,23 +159,24 @@ export default function useDesktopSession() {
     [clientCanvasProps.canvasRef]
   );
 
-  const onKeyDown = useCallback((e: KeyboardEvent) => {
-    keyboardHandler.current.handleKeyboardEvent({
-      cli: tdpClient.current,
-      e,
-      state: ButtonState.DOWN,
-    });
+  const onKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      keyboardHandler.current.handleKeyboardEvent({
+        cli: tdpClient.current,
+        e,
+        state: ButtonState.DOWN,
+      });
 
-    // TODO (avatus): figure where to call this in client data
-
-    // // The key codes in the if clause below are those that have been empirically determined not
-    // // to count as transient activation events. According to the documentation, a keydown for
-    // // the Esc key and any "shortcut key reserved by the user agent" don't count as activation
-    // // events: https://developer.mozilla.org/en-US/docs/Web/Security/User_activation.
-    // if (e.key !== 'Meta' && e.key !== 'Alt' && e.key !== 'Escape') {
-    //   onKeyDown();
-    // }
-  }, []);
+      // The key codes in the if clause below are those that have been empirically determined not
+      // to count as transient activation events. According to the documentation, a keydown for
+      // the Esc key and any "shortcut key reserved by the user agent" don't count as activation
+      // events: https://developer.mozilla.org/en-US/docs/Web/Security/User_activation.
+      if (e.key !== 'Meta' && e.key !== 'Alt' && e.key !== 'Escape') {
+        sendLocalClipboardToRemote();
+      }
+    },
+    [sendLocalClipboardToRemote]
+  );
 
   const onKeyUp = useCallback((e: KeyboardEvent) => {
     keyboardHandler.current.handleKeyboardEvent({
@@ -166,12 +189,6 @@ export default function useDesktopSession() {
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
 
   const [hostname, setHostname] = useState<string>('');
-
-  const [directorySharingState, setDirectorySharingState] =
-    useState<DirectorySharingState>(defaultDirectorySharingState);
-
-  const [clipboardSharingState, setClipboardSharingState] =
-    useState<ClipboardSharingState>(defaultClipboardSharingState);
 
   useEffect(() => {
     const clearReadListenerPromise = initClipboardPermissionTracking(
@@ -236,24 +253,30 @@ export default function useDesktopSession() {
     .replace(':username', username);
 
   // Default TdpClientEvent.TDP_CLIPBOARD_DATA handler.
-  const onClipboardData = async (clipboardData: ClipboardData) => {
-    if (
-      clipboardData.data &&
-      (await sysClipboardGuard(clipboardSharingState, 'write'))
-    ) {
-      navigator.clipboard.writeText(clipboardData.data);
-      let digest = await Sha256Digest(clipboardData.data, encoder.current);
-      latestClipboardDigest.current = digest;
-    }
-  };
+  const onClipboardData = useCallback(
+    async (clipboardData: ClipboardData) => {
+      if (
+        clipboardData.data &&
+        (await sysClipboardGuard(clipboardSharingState, 'write'))
+      ) {
+        navigator.clipboard.writeText(clipboardData.data);
+        let digest = await Sha256Digest(clipboardData.data, encoder.current);
+        latestClipboardDigest.current = digest;
+      }
+    },
+    [clipboardSharingState]
+  );
 
-  const onScreenSpec = (spec: ClientScreenSpec) => {
-    clientCanvasProps.syncCanvas(spec);
-  };
+  const onScreenSpec = useCallback(
+    (spec: ClientScreenSpec) => {
+      clientCanvasProps.syncCanvas(spec);
+    },
+    [clientCanvasProps]
+  );
 
   // Default TdpClientEvent.TDP_ERROR and TdpClientEvent.CLIENT_ERROR handler
-  const onError = (error: Error) => {
-    // setDirectorySharingState(defaultDirectorySharingState);
+  const onError = useCallback((error: Error) => {
+    setDirectorySharingState(defaultDirectorySharingState);
     setClipboardSharingState(defaultClipboardSharingState);
     // should merge this + wsStatus into 1 connection var
     setTdpConnection(prevState => {
@@ -269,10 +292,10 @@ export default function useDesktopSession() {
       }
       return prevState;
     });
-  };
+  }, []);
 
   // Default TdpClientEvent.TDP_WARNING and TdpClientEvent.CLIENT_WARNING handler
-  const onWarning = (warning: string) => {
+  const onWarning = useCallback((warning: string) => {
     setAlerts(prevState => {
       return [
         ...prevState,
@@ -283,30 +306,30 @@ export default function useDesktopSession() {
         },
       ];
     });
-  };
+  }, []);
 
   // TODO(zmb3): this is not what an info-level alert should do.
   // rename it to something like onGracefulDisconnect
-  const onInfo = (info: string) => {
-    // setDirectorySharingState(defaultDirectorySharingState);
+  const onInfo = useCallback((info: string) => {
+    setDirectorySharingState(defaultDirectorySharingState);
     setClipboardSharingState(defaultClipboardSharingState);
     setTdpConnection({
       status: 'closed', // gracefully disconnecting
       statusText: info,
     });
-  };
+  }, []);
 
-  const onWsOpen = () => {
+  const onWsOpen = useCallback(() => {
     setTdpConnection({ status: 'open', statusText: '' });
-  };
+  }, []);
 
-  const onWsClose = (message: string) => {
+  const onWsClose = useCallback((message: string) => {
     setTdpConnection({ status: 'closed', statusText: message });
-  };
+  }, []);
 
   // create a closure to enable rendered buffering and return
   // the "listener" from it
-  const onBmpFrame = () => {
+  const onBmpFrame = useCallback(() => {
     const canvas = clientCanvasProps.canvasRef.current;
     if (!canvas) {
       return;
@@ -333,11 +356,11 @@ export default function useDesktopSession() {
       bmpBuffer.push(bmpFrame);
     };
     return pushToBmpBuffer;
-  };
+  }, [clientCanvasProps.canvasRef]);
 
   // create a closure to enable rendered buffering and return
   // the "listener" from it
-  const onPngFrame = () => {
+  const onPngFrame = useCallback(() => {
     const canvas = clientCanvasProps.canvasRef.current;
     if (!canvas) {
       return;
@@ -349,15 +372,6 @@ export default function useDesktopSession() {
     const renderBuffer = () => {
       if (pngBuffer.length) {
         for (let i = 0; i < pngBuffer.length; i++) {
-          // not sure why we sync the canvas during first frame when it doesn't seem
-          // to care about any of the frame data at all? and we sync canvas
-          if (!tdpConnection.receivedFirstFrame) {
-            setTdpConnection(prevState => ({
-              ...prevState,
-              receivedFirstFrame: true,
-            }));
-            clientCanvasProps.syncCanvas(getDisplaySize());
-          }
           const pngFrame = pngBuffer[i];
           if (ctx) {
             ctx.drawImage(pngFrame.data, pngFrame.left, pngFrame.top);
@@ -373,40 +387,44 @@ export default function useDesktopSession() {
       pngBuffer.push(pngFrame);
     };
     return pushToPngBuffer;
-  };
+  }, [clientCanvasProps.canvasRef]);
 
-  const onPointer = (pointer: PointerData) => {
-    const canvas = clientCanvasProps.canvasRef.current;
-    if (!canvas) {
-      return;
-    }
-    if (typeof pointer.data === 'boolean') {
-      canvas.style.cursor = pointer.data ? 'default' : 'none';
-      return;
-    }
-    let cursor = document.createElement('canvas');
-    cursor.width = pointer.data.width;
-    cursor.height = pointer.data.height;
-    cursor
-      .getContext('2d', { colorSpace: pointer.data.colorSpace })
-      .putImageData(pointer.data, 0, 0);
-    if (pointer.data.width > 32 || pointer.data.height > 32) {
-      // scale the cursor down to at most 32px - max size fully supported by browsers
-      const resized = document.createElement('canvas');
-      let scale = Math.min(32 / cursor.width, 32 / cursor.height);
-      resized.width = cursor.width * scale;
-      resized.height = cursor.height * scale;
+  const onPointer = useCallback(
+    (pointer: PointerData) => {
+      const canvas = clientCanvasProps.canvasRef.current;
+      if (!canvas) {
+        return;
+      }
+      if (typeof pointer.data === 'boolean') {
+        canvas.style.cursor = pointer.data ? 'default' : 'none';
+        return;
+      }
+      let cursor = document.createElement('canvas');
+      cursor.width = pointer.data.width;
+      cursor.height = pointer.data.height;
+      cursor
+        .getContext('2d', { colorSpace: pointer.data.colorSpace })
+        .putImageData(pointer.data, 0, 0);
+      if (pointer.data.width > 32 || pointer.data.height > 32) {
+        // scale the cursor down to at most 32px - max size fully supported by browsers
+        const resized = document.createElement('canvas');
+        let scale = Math.min(32 / cursor.width, 32 / cursor.height);
+        resized.width = cursor.width * scale;
+        resized.height = cursor.height * scale;
 
-      let context = resized.getContext('2d', {
-        colorSpace: pointer.data.colorSpace,
-      });
-      context.scale(scale, scale);
-      context.drawImage(cursor, 0, 0);
-      cursor = resized;
-    }
-    canvas.style.cursor = `url(${cursor.toDataURL()}) ${pointer.hotspot_x
+        let context = resized.getContext('2d', {
+          colorSpace: pointer.data.colorSpace,
+        });
+        context.scale(scale, scale);
+        context.drawImage(cursor, 0, 0);
+        cursor = resized;
+      }
+      canvas.style.cursor = `url(${cursor.toDataURL()}) ${
+        pointer.hotspot_x
       } ${pointer.hotspot_y}, auto`;
-  };
+    },
+    [clientCanvasProps.canvasRef]
+  );
 
   useEffect(() => {
     if (!tdpClient.current) {
@@ -423,24 +441,22 @@ export default function useDesktopSession() {
         onWsClose,
       });
     }
-    // TODO (avatus) : fix this
-    // eslint-disable-next-line
-  }, [addr]);
-
-  const sendLocalClipboardToRemote = async (cli: TdpClient) => {
-    if (await sysClipboardGuard(clipboardSharingState, 'read')) {
-      navigator.clipboard.readText().then(text => {
-        Sha256Digest(text, encoder.current).then(digest => {
-          if (text && digest !== latestClipboardDigest.current) {
-            cli.sendClipboardData({
-              data: text,
-            });
-            latestClipboardDigest.current = digest;
-          }
-        });
-      });
-    }
-  };
+    // because onClipboardData requires information about clipboardSharingState
+    // we need to rebind the event handler when the callback is updated
+    tdpClient.current.setEventHandler('onClipboardData', onClipboardData);
+  }, [
+    addr,
+    onClipboardData,
+    onBmpFrame,
+    onPngFrame,
+    onError,
+    onWarning,
+    onInfo,
+    onWsOpen,
+    onScreenSpec,
+    onPointer,
+    onWsClose,
+  ]);
 
   const webauthn = useWebAuthn(tdpClient.current);
 
@@ -528,12 +544,50 @@ export default function useDesktopSession() {
     { trailing: true }
   );
 
+  /**
+   * To be called before any system clipboard read/write operation.
+   */
+  async function sysClipboardGuard(
+    clipboardSharingState: ClipboardSharingState,
+    checkingFor: 'read' | 'write'
+  ): Promise<boolean> {
+    // If we're not allowed to share the clipboard according to the acl
+    // or due to the browser we're using, never try to read or write.
+    if (!clipboardSharingPossible(clipboardSharingState)) {
+      return false;
+    }
+
+    // If the relevant state is 'prompt', try the operation so that the
+    // user is prompted to allow it.
+    const checkingForRead = checkingFor === 'read';
+    const checkingForWrite = checkingFor === 'write';
+    const relevantStateIsPrompt =
+      (checkingForRead && clipboardSharingState.readState === 'prompt') ||
+      (checkingForWrite && clipboardSharingState.writeState === 'prompt');
+    if (relevantStateIsPrompt) {
+      return true;
+    }
+
+    // Otherwise try only if both read and write permissions are granted
+    // and the document has focus (without focus we get an uncatchable error).
+    //
+    // Note that there's no situation where only one of read or write is granted,
+    // but the other is denied, and we want to try the operation. The feature is
+    // either fully enabled or fully disabled.
+    return isSharingClipboard(clipboardSharingState) && document.hasFocus();
+  }
+
+  function onFocusOut() {
+    keyboardHandler.current.onFocusOut();
+  }
+
   return {
     webauthn,
     tdpClient,
     onMouseDown,
     onKeyDown,
     onKeyUp,
+    onFocusOut,
     onMouseMove,
     onMouseUp,
     onMouseWheelScroll,
@@ -719,39 +773,6 @@ export const defaultDirectorySharingState: DirectorySharingState = {
 export const defaultClipboardSharingState: ClipboardSharingState = {
   browserSupported: navigator.userAgent.includes('Chrome'),
 };
-
-/**
- * To be called before any system clipboard read/write operation.
- */
-function sysClipboardGuard(
-  clipboardSharingState: ClipboardSharingState,
-  checkingFor: 'read' | 'write'
-): boolean {
-  // If we're not allowed to share the clipboard according to the acl
-  // or due to the browser we're using, never try to read or write.
-  if (!clipboardSharingPossible(clipboardSharingState)) {
-    return false;
-  }
-
-  // If the relevant state is 'prompt', try the operation so that the
-  // user is prompted to allow it.
-  const checkingForRead = checkingFor === 'read';
-  const checkingForWrite = checkingFor === 'write';
-  const relevantStateIsPrompt =
-    (checkingForRead && clipboardSharingState.readState === 'prompt') ||
-    (checkingForWrite && clipboardSharingState.writeState === 'prompt');
-  if (relevantStateIsPrompt) {
-    return true;
-  }
-
-  // Otherwise try only if both read and write permissions are granted
-  // and the document has focus (without focus we get an uncatchable error).
-  //
-  // Note that there's no situation where only one of read or write is granted,
-  // but the other is denied, and we want to try the operation. The feature is
-  // either fully enabled or fully disabled.
-  return isSharingClipboard(clipboardSharingState) && document.hasFocus();
-}
 
 // Calculates the size (in pixels) of the display.
 // Since we want to maximize the display size for the user, this is simply
