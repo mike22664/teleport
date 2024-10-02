@@ -18,7 +18,6 @@
 
 import { useRef } from 'react';
 
-import { TdpClient } from 'teleport/lib/tdp';
 import { ClientScreenSpec } from 'teleport/lib/tdp/codec';
 
 declare global {
@@ -45,11 +44,6 @@ export default function useTdpClientCanvas() {
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
   };
-
-  // TODO: restore this
-  // const onFocusOut = () => {
-  //   keyboardHandler.current.onFocusOut();
-  // };
 
   return {
     syncCanvas,
