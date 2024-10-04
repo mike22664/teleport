@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -483,11 +484,82 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 // application service. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
 func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session, error) {
+	// Extract the identity of the user.
+	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Query the cluster this application is running in to find the public
+	// address and cluster name pair which will be encoded into the certificate.
+	clusterClient, err := h.c.ProxyClient.GetSite(identity.RouteToApp.ClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessPoint, err := clusterClient.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := Match(
+		ctx,
+		accessPoint,
+		appServerMatcher(h.c.ProxyClient, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(servers) == 0 {
+		return nil, trace.NotFound("failed to match applications")
+	}
+	
 	// Put the session in the cache so the next request can use it.
 	ttl := ws.Expiry().Sub(h.c.Clock.Now())
 	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*session, error) {
-		sess, err := h.newSession(ctx, ws)
-		return sess, trace.Wrap(err)
+		// Create a rewriting transport that will be used to forward requests.
+		transport, err := newTransport(&transportConfig{
+			log:                   h.log,
+			clock:                 h.c.Clock,
+			proxyClient:           h.c.ProxyClient,
+			accessPoint:           h.c.AccessPoint,
+			cipherSuites:          h.c.CipherSuites,
+			identity:              identity,
+			servers:               servers,
+			ws:                    ws,
+			clusterName:           h.clusterName,
+			integrationAppHandler: h.c.IntegrationAppHandler,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Don't trust any "X-Forward-*" headers the client sends, instead set our own.
+		delegate := reverseproxy.NewHeaderRewriter()
+		delegate.TrustForwardHeader = false
+		hr := common.NewHeaderRewriter(delegate)
+
+		// Create a forwarder that will be used to forward requests.
+		fwd, err := reverseproxy.New(
+			reverseproxy.WithPassHostHeader(),
+			reverseproxy.WithFlushInterval(100*time.Millisecond),
+			reverseproxy.WithRoundTripper(transport),
+			reverseproxy.WithLogger(h.log),
+			reverseproxy.WithErrorHandler(h.handleForwardError),
+			reverseproxy.WithRewriter(hr),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &session{
+			fwd: fwd,
+			ws:  ws,
+			tr:  transport,
+		}, nil
 	})
 	return sess, trace.Wrap(err)
 }
