@@ -108,7 +108,7 @@ func TestAWS(t *testing.T) {
 	// Log into the "aws-app" app.
 	err = Run(
 		context.Background(),
-		[]string{"app", "login", "--insecure", "--aws-role", "some-aws-role", "aws-app"},
+		[]string{"app", "login", "--aws-role", "some-aws-role", "aws-app"},
 		setHomePath(tmpHomePath),
 	)
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestAWS(t *testing.T) {
 	require.NoError(t, err)
 	err = Run(
 		context.Background(),
-		[]string{"aws", "--insecure", "--aws-role", "some-aws-role", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
+		[]string{"aws", "--aws-role", "some-aws-role", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)

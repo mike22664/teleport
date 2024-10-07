@@ -259,6 +259,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -279,6 +280,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -299,6 +301,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -338,6 +341,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -384,6 +388,7 @@ func TestSession_newRecorder(t *testing.T) {
 				id:  "test",
 				log: logger,
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv: &mockServer{
 							component: teleport.ComponentNode,
@@ -774,15 +779,7 @@ func TestParties(t *testing.T) {
 
 	// If a party's session context is closed, the party should leave the session.
 	p = sess.getParties()[0]
-
-	// TODO(Joerger): Closing the host party's server context will result in the terminal
-	// shell being killed, and the session ending for all parties. Once this bug is
-	// fixed, we can re-enable this section of the test. For now just close the party.
-	// https://github.com/gravitational/teleport/issues/46308
-	//
-	// require.NoError(t, p.ctx.Close())
-
-	require.NoError(t, p.Close())
+	require.NoError(t, p.ctx.Close())
 
 	partyIsRemoved = func() bool {
 		return len(sess.getParties()) == 1 && !sess.isStopped()
@@ -1122,6 +1119,7 @@ func TestTrackingSession(t *testing.T) {
 				id:  rsession.NewID(),
 				log: utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test-session"),
 				registry: &SessionRegistry{
+					logger: utils.NewSlogLoggerForTests(),
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv:                   srv,
 						SessionTrackerService: trackingService,
@@ -1527,6 +1525,7 @@ func TestUpsertHostUser(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			registry := SessionRegistry{
+				logger: utils.NewSlogLoggerForTests(),
 				SessionRegistryConfig: SessionRegistryConfig{
 					Srv: &fakeServer{createHostUser: c.createHostUser},
 				},
@@ -1600,6 +1599,7 @@ func TestWriteSudoersFile(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			registry := SessionRegistry{
+				logger: utils.NewSlogLoggerForTests(),
 				SessionRegistryConfig: SessionRegistryConfig{
 					Srv: &fakeServer{hostSudoers: c.hostSudoers},
 				},
@@ -1648,6 +1648,10 @@ func (f *fakeServer) GetHostSudoers() HostSudoers {
 
 func (f *fakeServer) GetInfo() types.Server {
 	return nil
+}
+
+func (f *fakeServer) Context() context.Context {
+	return context.Background()
 }
 
 type fakeAccessChecker struct {

@@ -23,17 +23,17 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/aws/smithy-go/middleware"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -67,7 +67,6 @@ const (
 	agentName                   = "teleport-kube-agent"
 	awsKubePrefix               = "k8s-aws-v1."
 	awsHeaderClusterName        = "x-k8s-aws-id"
-	awsHeaderExpires            = "X-Amz-Expires" // Header required by AWS when creating presigned URL.
 	concurrentEKSEnrollingLimit = 5
 )
 
@@ -119,9 +118,6 @@ type EnrollEKSCLusterClient interface {
 
 	// CreateToken creates provisioning token on the auth server. That token can be used to install kube agent to an EKS cluster.
 	CreateToken(context.Context, types.ProvisionToken) error
-
-	// PresignGetCallerIdentityURL creates a presigned URL for the GetCallerIdentity action, that can be used for accessing EKS cluster.
-	PresignGetCallerIdentityURL(context.Context, string) (string, error)
 }
 
 type defaultEnrollEKSClustersClient struct {
@@ -133,10 +129,6 @@ type defaultEnrollEKSClustersClient struct {
 // GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
 func (d *defaultEnrollEKSClustersClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
 	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
-}
-
-func (d *defaultEnrollEKSClustersClient) PresignGetCallerIdentityURL(ctx context.Context, clusterName string) (string, error) {
-	return presignCallerIdentityURL(ctx, d.stsClient, clusterName)
 }
 
 // CheckAgentAlreadyInstalled checks if teleport-kube-agent Helm chart is already installed on the EKS cluster.
@@ -288,7 +280,7 @@ func (e *EnrollEKSClustersRequest) CheckAndSetDefaults() error {
 // During enrollment we create access entry for an EKS cluster if needed and cluster admin policy is associated with that entry,
 // so our AWS integration can access the target EKS cluster during the chart installation. After enrollment is done we remove
 // the access entry (if it was created by us), since we don't need it anymore.
-func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Clock, proxyAddr string, clt EnrollEKSCLusterClient, req EnrollEKSClustersRequest) (*EnrollEKSClusterResponse, error) {
+func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Clock, proxyAddr string, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, req EnrollEKSClustersRequest) (*EnrollEKSClusterResponse, error) {
 	var mu sync.Mutex
 	var results []EnrollEKSClusterResult
 
@@ -303,7 +295,7 @@ func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Cl
 		eksClusterName := eksClusterName
 
 		group.Go(func() error {
-			resourceId, err := enrollEKSCluster(ctx, log, clock, clt, proxyAddr, eksClusterName, req)
+			resourceId, err := enrollEKSCluster(ctx, log, clock, credsProvider, clt, proxyAddr, eksClusterName, req)
 			if err != nil {
 				log.WarnContext(ctx, "Failed to enroll EKS cluster",
 					"error", err,
@@ -324,40 +316,7 @@ func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Cl
 	return &EnrollEKSClusterResponse{Results: results}, nil
 }
 
-func presignCallerIdentityURL(ctx context.Context, stsClient *sts.Client, clusterName string) (string, error) {
-	presignClient := sts.NewPresignClient(stsClient)
-
-	// This function adds required headers for accessing an EKS cluster to the presigned URL.
-	// Header "x-k8s-aws-id" specifies EKS cluster name and header "X-Amz-Expires" is just required for compatibility reasons.
-	addEKSHeaders := func(ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler) (
-		out middleware.BuildOutput, metadata middleware.Metadata, err error,
-	) {
-		req, ok := in.Request.(*smithyhttp.Request)
-		if !ok {
-			return out, metadata, fmt.Errorf("unknown transport type %T", req)
-		}
-
-		req.Header.Add(awsHeaderClusterName, clusterName)
-		// 60 is put for compatibility reasons, in reality it is ignored and real expiration time is 15 minutes.
-		req.Header.Add(awsHeaderExpires, "60")
-
-		return next.HandleBuild(ctx, in)
-	}
-
-	presigned, err := presignClient.PresignGetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}, func(options *sts.PresignOptions) {
-		options.ClientOptions = append(options.ClientOptions,
-			sts.WithAPIOptions(func(stack *middleware.Stack) error {
-				return stack.Build.Add(middleware.BuildMiddlewareFunc("AddEKSHeaders", addEKSHeaders), 0)
-			}))
-	})
-	if err != nil {
-		return "", trace.Wrap(err, "failed to presign caller identity")
-	}
-
-	return presigned.URL, nil
-}
-
-func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clock, clt EnrollEKSCLusterClient, proxyAddr, clusterName string, req EnrollEKSClustersRequest) (string, error) {
+func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clock, credsProvider aws.CredentialsProvider, clt EnrollEKSCLusterClient, proxyAddr, clusterName string, req EnrollEKSClustersRequest) (string, error) {
 	eksClusterInfo, err := clt.DescribeCluster(ctx, &eks.DescribeClusterInput{
 		Name: aws.String(clusterName),
 	})
@@ -415,12 +374,7 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		return "", trace.Wrap(err, "unable to associate EKS Access Policy to cluster %q", clusterName)
 	}
 
-	presignedURL, err := clt.PresignGetCallerIdentityURL(ctx, clusterName)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	kubeClientGetter, err := getKubeClientGetter(presignedURL,
+	kubeClientGetter, err := getKubeClientGetter(ctx, clock.Now(), credsProvider, clusterName, req.Region,
 		aws.ToString(eksCluster.CertificateAuthority.Data), aws.ToString(eksCluster.Endpoint))
 	if err != nil {
 		return "", trace.Wrap(err, "unable to build kubernetes client for EKS cluster %q", clusterName)
@@ -506,9 +460,42 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 	return err == nil, trace.Wrap(err)
 }
 
+// getPresignURL returns a specially formatted URL that can be presigned and used in EKS authentication.
+func getPresignURL() url.URL {
+	endpoint := "sts.amazonaws.com"
+	q := url.Values{}
+	q.Set("Action", "GetCallerIdentity")
+	q.Set("Version", "2011-06-15")
+	q.Set("X-Amz-Expires", "60")
+
+	return url.URL{
+		Scheme:   "https",
+		Host:     endpoint,
+		Path:     "/",
+		RawQuery: q.Encode(),
+	}
+}
+
 // getKubeClientGetter returns client getter for kube that can be used to access target EKS cluster
-func getKubeClientGetter(presignedUrl, clusterCA, clusterEndpoint string) (*genericclioptions.ConfigFlags, error) {
-	kubeToken := awsKubePrefix + base64.RawURLEncoding.EncodeToString([]byte(presignedUrl))
+func getKubeClientGetter(ctx context.Context, timestamp time.Time, credsProvider aws.CredentialsProvider, clusterName, region, clusterCA, clusterEndpoint string) (*genericclioptions.ConfigFlags, error) {
+	targetUrl := getPresignURL()
+
+	r, err := http.NewRequest(http.MethodGet, targetUrl.String(), nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	r.Header.Add(awsHeaderClusterName, clusterName)
+	creds, err := credsProvider.Retrieve(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer := v4.NewSigner()
+	presigned, _, err := signer.PresignHTTP(ctx, creds, r, hashForGetRequests, "sts", region, timestamp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeToken := awsKubePrefix + base64.RawURLEncoding.EncodeToString([]byte(presigned))
 
 	eksClusterCA, err := base64.StdEncoding.DecodeString(clusterCA)
 	if err != nil {

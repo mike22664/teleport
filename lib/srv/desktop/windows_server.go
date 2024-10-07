@@ -1003,7 +1003,7 @@ func (s *WindowsService) makeTDPSendHandler(
 	return func(m tdp.Message, b []byte) {
 		switch b[0] {
 		case byte(tdp.TypeRDPConnectionInitialized), byte(tdp.TypeRDPFastPathPDU), byte(tdp.TypePNG2Frame),
-			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeAlert):
+			byte(tdp.TypePNGFrame), byte(tdp.TypeError), byte(tdp.TypeNotification):
 			e := &events.DesktopRecording{
 				Metadata: events.Metadata{
 					Type: libevents.DesktopRecordingEvent,

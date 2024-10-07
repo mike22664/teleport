@@ -771,8 +771,6 @@ const (
 	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
 
 	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
-	// Also added by discovery service to indicate the type of discovered
-	// resource, e.g. "rds" for RDS databases, "eks" for EKS kube clusters, etc.
 	DiscoveryTypeLabel = TeleportNamespace + "/discovery-type"
 	// DiscoveryPortLabel specifies preferred port for a discovered app created from Kubernetes service.
 	DiscoveryPortLabel = TeleportNamespace + "/port"
@@ -1230,7 +1228,6 @@ var RequestableResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
-	KindSAMLIdPServiceProvider,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.

@@ -90,8 +90,8 @@ const props: State = {
   },
   showAnotherSessionActiveDialog: false,
   setShowAnotherSessionActiveDialog: () => {},
-  alerts: [],
-  onRemoveAlert: () => {},
+  warnings: [],
+  onRemoveWarning: () => {},
   windowOnResize: throttle(() => {}, 1000),
 };
 
@@ -314,47 +314,34 @@ export const ClipboardSharingDisabledBrowserPermissions = () => (
   />
 );
 
-export const Alerts = () => {
+export const Warnings = () => {
   const client = fakeClient();
   client.connect = async () => {
     client.emit(TdpClientEvent.TDP_PNG_FRAME);
   };
 
-  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
+  const [warnings, setWarnings] = useState<NotificationItem[]>([]);
 
   const addWarning = () => {
-    setAlerts(prevItems => [
+    setWarnings(prevItems => [
       ...prevItems,
       {
         id: crypto.randomUUID(),
         severity: 'warn',
-        content: `This is a warning message at ${new Date().toLocaleTimeString()}`,
+        content:
+          "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
       },
     ]);
   };
 
-  const addInfo = () => {
-    setAlerts(prevItems => [
-      ...prevItems,
-      {
-        id: crypto.randomUUID(),
-        severity: 'info',
-        content: `This is an info message at ${new Date().toLocaleTimeString()}`,
-      },
-    ]);
-  };
-
-  const removeAlert = (id: string) => {
-    setAlerts(prevState => prevState.filter(warning => warning.id !== id));
+  const removeWarning = (id: string) => {
+    setWarnings(prevState => prevState.filter(warning => warning.id !== id));
   };
 
   return (
     <>
-      <ButtonPrimary onClick={addWarning} mb={1} mr={1}>
+      <ButtonPrimary onClick={addWarning} mb={1}>
         Add Warning
-      </ButtonPrimary>
-      <ButtonPrimary onClick={addInfo} mb={1}>
-        Add Info
       </ButtonPrimary>
       <DesktopSession
         {...props}
@@ -376,8 +363,8 @@ export const Alerts = () => {
         clientOnPngFrame={(ctx: CanvasRenderingContext2D) => {
           fillGray(ctx.canvas);
         }}
-        alerts={alerts}
-        onRemoveAlert={removeAlert}
+        warnings={warnings}
+        onRemoveWarning={removeWarning}
       />
     </>
   );

@@ -201,7 +201,7 @@ function Reviewers({
         `}
       >
         <Text
-          typography="body3"
+          typography="body2"
           bold
           style={{ whiteSpace: 'nowrap', maxWidth: '200px' }}
           title={reviewer.value}
@@ -243,7 +243,7 @@ function Reviewers({
         `}
       >
         <Flex alignItems="baseline" gap={2}>
-          <Text typography="body3">Reviewers (optional)</Text>
+          <Text fontSize={1}>Reviewers (optional)</Text>
           <ButtonBorder
             onClick={e => {
               // By stopping propagation,

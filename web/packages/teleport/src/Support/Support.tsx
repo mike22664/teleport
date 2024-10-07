@@ -230,7 +230,7 @@ const StyledSupportLink = styled.a.attrs({
   padding: 4px 8px;
   transition: all 0.3s;
 
-  ${props => props.theme.typography.body3}
+  ${props => props.theme.typography.body2}
   &:hover, &:focus {
     background: ${props => props.theme.colors.spotBackground[0]};
   }
@@ -242,10 +242,10 @@ const StyledHeader = styled(Flex)`
 
 export const DataItem = ({ title = '', data = null }) => (
   <Flex mb={3}>
-    <Text typography="body3" bold style={{ width: '130px' }}>
+    <Text typography="body2" bold style={{ width: '130px' }}>
       {title}:
     </Text>
-    <Text typography="body3">{data}</Text>
+    <Text typography="body2">{data}</Text>
   </Flex>
 );
 

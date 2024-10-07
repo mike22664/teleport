@@ -246,8 +246,8 @@ const HiddenBox = styled.div`
   position: absolute;
 `;
 
-const Wrap = styled.div<{ tDuration: number }>(
-  ({ tDuration }) => `
+const Wrap = styled.div(
+  ({ tDuration }: { tDuration: number }) => `
  
  .prev-slide-enter {
    transform: translateX(-100%);

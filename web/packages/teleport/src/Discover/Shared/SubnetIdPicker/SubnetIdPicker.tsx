@@ -122,6 +122,7 @@ function CheckboxCell({
     <Cell width="20px">
       <Flex alignItems="center" my={2} justifyContent="center">
         <CheckboxInput
+          type="checkbox"
           id={item.id}
           onChange={e => {
             onChange(item, e);

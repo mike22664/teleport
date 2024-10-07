@@ -63,6 +63,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	oktav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -90,6 +91,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
+	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
@@ -1016,7 +1018,7 @@ func (g *GRPCServer) CreateAccessRequestV2(ctx context.Context, req *types.Acces
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateAccessRequestClusterNames(g.AuthServer, req); err != nil {
+	if err := services.ValidateAccessRequestClusterNames(auth, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2038,6 +2040,17 @@ func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *emptypb.Empty) (
 		return nil, trace.Wrap(err)
 	}
 
+	return &emptypb.Empty{}, nil
+}
+
+// UpdateRemoteCluster updates remote cluster
+// Deprecated: use [presencev1.PresenceService.UpdateRemoteCluster] instead.
+// TODO(noah): DELETE IN 17.0.0
+func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteClusterV3) (*emptypb.Empty, error) {
+	_, err := g.presenceService.UpdateRemoteCluster(ctx, &presencev1pb.UpdateRemoteClusterRequest{RemoteCluster: req})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &emptypb.Empty{}, nil
 }
 
@@ -5161,7 +5174,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Reporter:   cfg.AuthServer.Services.UsageReporter,
 		Emitter:    cfg.Emitter,
 		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating bot service")
@@ -5185,7 +5197,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:    cfg.Emitter,
 		Clock:      cfg.AuthServer.GetClock(),
 		KeyStore:   cfg.AuthServer.keyStore,
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "workload-identity.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating workload identity service")
@@ -5276,6 +5287,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole)
 	authpb.RegisterJoinServiceServer(server, joinServiceServer)
 
+	oktaServiceServer, err := okta.NewService(okta.ServiceConfig{
+		Backend:    cfg.AuthServer.bk,
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	oktav1pb.RegisterOktaServiceServer(server, oktaServiceServer)
+
 	integrationServiceServer, err := integrationv1.NewService(&integrationv1.ServiceConfig{
 		Authorizer:      cfg.Authorizer,
 		Backend:         cfg.AuthServer.Services,
@@ -5326,6 +5346,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Authorizer: cfg.Authorizer,
 		Backend:    cfg.AuthServer.Services,
 		Reader:     cfg.AuthServer.Cache,
+		Emitter:    cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

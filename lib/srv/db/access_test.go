@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto/tls"
 	"database/sql"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -53,22 +52,20 @@ import (
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -760,10 +757,6 @@ func TestGCPRequireSSL(t *testing.T) {
 		Username:   user,
 	})
 	require.NoError(t, err)
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: ephemeralCert.Certificate[0],
-	})
 
 	// Setup database servers for Postgres and MySQL with a mock GCP API that
 	// will require SSL and return the ephemeral certificate created above.
@@ -773,7 +766,7 @@ func TestGCPRequireSSL(t *testing.T) {
 			withCloudSQLMySQLTLS("mysql", user, cloudSQLPassword)(t, ctx, testCtx),
 		},
 		GCPSQL: &mocks.GCPSQLAdminClientMock{
-			EphemeralCert: string(certPEM),
+			EphemeralCert: ephemeralCert,
 			DatabaseInstance: &sqladmin.DatabaseInstance{
 				Settings: &sqladmin.Settings{
 					IpConfiguration: &sqladmin.IpConfiguration{
@@ -1979,19 +1972,14 @@ func (c *testContext) cassandraClientWithAddr(ctx context.Context, proxyAddress,
 
 // startLocalALPNProxy starts local ALPN proxy for the specified database.
 func (c *testContext) startLocalALPNProxy(ctx context.Context, proxyAddr, teleportUser string, route tlsca.RouteToDatabase) (*alpnproxy.LocalProxy, error) {
-	key, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	clientCert, err := c.authServer.GenerateDatabaseTestCert(
 		auth.DatabaseTestCertRequest{
-			PublicKey:       publicKeyPEM,
+			PublicKey:       key.MarshalSSHPublicKey(),
 			Cluster:         c.clusterName,
 			Username:        teleportUser,
 			RouteToDatabase: route,
@@ -2284,10 +2272,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Clock:       testCtx.clock,
 		ClusterName: testCtx.clusterName,
-		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
-			SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-		},
-		Dir: t.TempDir(),
+		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
@@ -2424,7 +2409,7 @@ type agentParams struct {
 	// ResourceMatchers are optional database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 	// GetServerInfoFn overrides heartbeat's server info function.
-	GetServerInfoFn func(database types.Database) func(context.Context) (*types.DatabaseServerV3, error)
+	GetServerInfoFn func(database types.Database) func() (types.Resource, error)
 	// OnReconcile sets database resource reconciliation callback.
 	OnReconcile func(types.Databases)
 	// NoStart indicates server should not be started.
@@ -2550,18 +2535,6 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		p.Recorder = libevents.NewDiscardRecorder()
 	}
 
-	// Auth client for this database server identity.
-	clt, err := c.tlsServer.NewClient(auth.TestServerID(types.RoleDatabase, p.HostID))
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, clt.Close()) })
-
-	inventoryHandle := inventory.NewDownstreamHandle(clt.InventoryControlStream, proto.UpstreamInventoryHello{
-		ServerID: p.HostID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleDatabase},
-		Hostname: "test",
-	})
-
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
 		Clock:            c.clock,
@@ -2599,27 +2572,13 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
 		ShutdownPollPeriod:       100 * time.Millisecond,
-		InventoryHandle:          inventoryHandle,
 		discoveryResourceChecker: p.DiscoveryResourceChecker,
 	})
 	require.NoError(t, err)
 
 	if !p.NoStart {
 		require.NoError(t, server.Start(ctx))
-
-		// Explicitly send a heartbeat for any statically defined dbs.
-		for _, db := range p.Databases {
-			select {
-			case sender := <-inventoryHandle.Sender():
-				dbServer, err := server.getServerInfo(db)
-				require.NoError(t, err)
-				require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
-					DatabaseServer: dbServer,
-				}))
-			case <-time.After(20 * time.Second):
-				t.Fatal("timed out waiting for inventory handle sender")
-			}
-		}
+		require.NoError(t, server.ForceHeartbeat())
 	}
 
 	return server

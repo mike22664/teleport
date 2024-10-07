@@ -58,6 +58,7 @@ as well as an upgrade of the previous version of Teleport.
     Windows Webauthn requires Windows 10 19H1 and device capable of Windows
     Hello.
 
+  - [ ] Adding Users Password Only
   - [ ] Adding Users OTP
   - [ ] Adding Users WebAuthn
     - [ ] macOS/Linux
@@ -76,7 +77,10 @@ as well as an upgrade of the previous version of Teleport.
     - [ ] List MFA devices with `tsh mfa ls`
     - [ ] Remove an OTP device with `tsh mfa rm`
     - [ ] Remove a WebAuthn device with `tsh mfa rm`
-    - [ ] Removing the last MFA device on the user fails
+    - [ ] Attempt removing the last MFA device on the user
+      - [ ] with `second_factor: on` in `auth_service`, should fail
+      - [ ] with `second_factor: optional` in `auth_service`, should succeed
+  - [ ] Login Password Only
   - [ ] Login with MFA
     - [ ] Add an OTP, a WebAuthn and a Touch ID/Windows Hello device with `tsh mfa add`
     - [ ] Login via OTP
@@ -698,15 +702,12 @@ tsh ssh node-that-requires-device-trust
     - [ ] SSH
     - [ ] App Access
     - [ ] Desktop Access
-    - [ ] GitHub user
-    - [ ] OIDC user
-    - [ ] SAML user
 
     Confirm that it works by failing first. Most protocols can be tested using
-    device_trust.mode="required". App Access and Desktop Access require a custom
-    role (see [enforcing device trust](https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support)).
+    device_trust.mode="required". App Acess and Deskop Access require a custom
+    role (see [enforcing device trust][enforcing-device-trust]).
 
-    For SSO users confirm that device web authentication happens successfully.
+[enforcing-device-trust]: https://goteleport.com/docs/access-controls/device-trust/enforcing-device-trust/#app-access-support).
 
 - [ ] Device authorization
   - [ ] device_trust.mode other than "off" or "" not allowed (OSS)
@@ -719,6 +720,16 @@ tsh ssh node-that-requires-device-trust
     - [ ] K8s Access
     - [ ] App Access NOT enforced in global mode
     - [ ] Desktop Access NOT enforced in global mode
+  - [ ] device_trust.mode="required" is enforced by processes and not only by
+        Auth APIs
+    - [ ] SSH
+    - [ ] DB Access
+    - [ ] K8s Access
+
+    Testing this requires issuing a certificate without device extensions
+    (mode="off"), then changing the cluster configuration to mode="required" and
+    attempting to access a process directly, without a login attempt.
+
   - [ ] Role-based authz enforces enrolled devices
         (device_trust.mode="optional" and role.spec.options.device_trust_mode="required")
     - [ ] SSH
@@ -726,7 +737,7 @@ tsh ssh node-that-requires-device-trust
     - [ ] K8s Access
     - [ ] App Access
     - [ ] Desktop Access
-  - [ ] Device authentication works correctly for both require_session_mfa=false
+  - [ ] Device authorization works correctly for both require_session_mfa=false
         and require_session_mfa=true
     - [ ] SSH
     - [ ] DB Access
@@ -738,12 +749,12 @@ tsh ssh node-that-requires-device-trust
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
   - [ ] Inventory management actions issue events (success only)
   - [ ] Device enrollment issues device event (any outcomes)
-  - [ ] Device authentication issues device event (any outcomes)
+  - [ ] Device authorization issues device event (any outcomes)
   - [ ] Device web authentication issues "Device Web Token Created" and "Device
         Web Authentication Confirmed" events
-  - [ ] Device web authentication events have web_authentication_id set.
+  - [ ] Device web authentication events have web_session_id set.
         Corresponding "Device Authenticated" events have both
-        web_authentication=true and web_authentication_id set.
+        web_authentication=true and web_session_id set.
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
 
@@ -826,8 +837,8 @@ $
 $ # test AWS KMS
 $ # login in to AWS locally
 $ AWS_ACCOUNT="$(aws sts get-caller-identity | jq -r '.Account')"
-$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 go test ./lib/auth/keystore -v --count 1
-$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_KMS_REGION=us-west-2 TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_REGION=us-west-2 go test ./lib/auth/keystore -v --count 1
+$ TELEPORT_TEST_AWS_KMS_ACCOUNT="${AWS_ACCOUNT}" TELEPORT_TEST_AWS_REGION=us-west-2 TELEPORT_ETCD_TEST=1 go test ./integration/hsm -v --count 1
 $
 $ # test AWS CloudHSM
 $ # set up the CloudHSM cluster and run this on an EC2 that can reach it
@@ -967,15 +978,11 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify `Add Application` links to documentation.
 
 ## Database Access
-Some tests are marked with "coverved by E2E test" and automatically completed
-by default. In cases the E2E test is flaky or disabled, deselect the task for
-manualy testing.
 
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
     - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
-    - [ ] MySQL server version reported by Teleport is correct.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
   - [ ] Self-hosted CockroachDB.
@@ -985,7 +992,6 @@ manualy testing.
   - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-    - [ ] MySQL server version reported by Teleport is correct.
   - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
@@ -997,7 +1003,7 @@ manualy testing.
   - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
+  - [ ] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, use CLI to create)
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -1030,7 +1036,7 @@ manualy testing.
   - [ ] GCP Cloud Spanner.
   - [ ] Snowflake.
   - [ ] Azure Cache for Redis.
-  - [x] Azure single-server MySQL and Postgres (EOL Sep 2024 and Mar 2025, skip)
+  - [ ] Azure single-server MySQL and Postgres
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] OpenSearch.
@@ -1045,12 +1051,9 @@ manualy testing.
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
-  - [x] AWS RDS Postgres. (covered by E2E test)
-  - [x] AWS RDS MySQL. (coverved by E2E test)
+  - [ ] AWS RDS Postgres.
+  - [ ] AWS RDS MySQL.
   - [ ] AWS RDS MariaDB.
-  - [x] AWS Redshift (coverved by E2E test).
-- [ ] Verify Database Access Control
-  - [ ] Postgres (tables)
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -1073,14 +1076,13 @@ manualy testing.
 - [ ] Verify discovery.
   Please configure discovery in Discovery Service instead of Database Service.
     - [ ] AWS
-      - [x] Can detect and register RDS instances. (covered by E2E test)
-        - [x] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
-      - [ ] Can detect and register RDS proxies, and their custom endpoints.
+      - [ ] Can detect and register RDS instances.
         - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
+      - [ ] Can detect and register RDS proxies, and their custom endpoints.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
-      - [x] Can detect and register Redshift clusters. (covered by E2E test)
-      - [x] Can detect and register Redshift serverless workgroups, and their VPC endpoints. (covered by E2E test)
+      - [ ] Can detect and register Redshift clusters.
+      - [ ] Can detect and register Redshift serverless workgroups, and their VPC endpoints.
       - [ ] Can detect and register ElastiCache Redis clusters.
       - [ ] Can detect and register MemoryDB clusters.
       - [ ] Can detect and register OpenSearch domains.
@@ -1097,7 +1099,8 @@ manualy testing.
   - [ ] Verify that clicking on a rows connect button renders a dialogue on manual instructions with `Step 2` login value matching the rows `name` column
   - [ ] Verify searching for all columns in the search bar works
   - [ ] Verify you can sort by all columns except `labels`
-- [ ] `tsh bench` load tests (instructions on Notion -> Database Access -> Load test)
+- [ ] Other
+  - [ ] MySQL server version reported by Teleport is correct.
 
 ## TLS Routing
 
@@ -1229,7 +1232,7 @@ manualy testing.
     - [ ] The clipboard icon is not highlighted in the top bar and copy/paste does not work
 - Directory Sharing
   - On supported, non-chromium based browsers (Firefox/Safari)
-    - [ ] Directory sharing option is not available in the dropdown
+    - [ ] Attempting to share directory logs a sensible warning in the warning dropdown
   - On supported, chromium based browsers (Chrome/Edge)
     - Begin sharing works
       - [ ] The shared directory icon in the top right of the screen is highlighted when directory sharing is initiated
@@ -1291,7 +1294,7 @@ manualy testing.
 - Audit Events (check these after performing the above tests)
   - [ ] `windows.desktop.session.start` (`TDP00I`) emitted on start
   - [ ] `windows.desktop.session.start` (`TDP00W`) emitted when session fails to
-    start (due to RBAC, or a desktop lock, for example)
+    start (due to RBAC, for example)
   - [ ] `client.disconnect` (`T3006I`) emitted when session is terminated by or fails
     to start due to lock
   - [ ] `windows.desktop.session.end` (`TDP01I`) emitted on end
@@ -1305,20 +1308,12 @@ manualy testing.
 - Warnings/Errors (test by applying [this patch](https://gist.github.com/ibeckermayer/7591333275e87ad0d7afa028a7bb54cb))
   - [ ] Induce the backend to send a TDP Notification of severity warning (1), confirm that a warning is logged in the warning dropdown
   - [ ] Induce the backend to send a TDP Notification of severity error (2), confirm that session is terminated and error popup is shown
-  - [ ] Induce the backend to send a TDP Error, confirm that session is terminated and error popup is shown. Confirm that the error is
-        shown at the end of the playback of this session (confirms backwards compatibility w/ recordings from older w_d_s pre Teleport 12).
+  - [ ] Induce the backend to send a TDP Error, confirm that session is terminated and error popup is shown (confirms backwards compatibility w/ older w_d_s starting in Teleport 12)
 - Trusted Cluster / Tunneling
   - Set up Teleport in a trusted cluster configuration where the root and leaf cluster has a w_d_s connected via tunnel (w_d_s running as a separate process)
     - [ ] Confirm that windows desktop sessions can be made on root cluster
     - [ ] Confirm that windows desktop sessions can be made on leaf cluster
-- Screen size/resize
-  - resize
-    - [ ] Screen can be resized during an active session
-    - [ ] Screen can be resized during login (meaning before resize dvc is opened).
-          The screen won't resize immediately, but it should resize when the dvc is opened (about when login completes).
-    - [ ] Screen can be resized during mfa dialog without losing the session
-    - [ ] Screen can be resized during "Active Session" dialog without losing the session
-  - `screen_size`
+- Screen size
     - [ ] Desktops that specify a fixed `screen_size` in their spec always use the same screen size.
     - [ ] Desktops sessions for desktops which specify a fixed `screen_size` do not resize automatically.
     - [ ] Attempting to register a desktop with a `screen_size` dimension larger than 8192 fails.
@@ -1331,8 +1326,8 @@ manualy testing.
   - [ ] Connecting to non-AD instance works with OSS if there are no more than 5 non-AD desktops
   - [ ] Connecting to non-AD instance fails with OSS if there are more than 5 non-AD desktops
   - [ ] Connecting to non-AD instance works with Enterprise license always
-  - [ ] In OSS version, if there are more than 5 non-AD desktops banner shows up telling you to upgrade (check occurs every 5 minutes so you may need to wait to confirm)
-  - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5 (check occurs every 5 minutes so you may need to wait to confirm)
+  - [ ] In OSS version, if there are more than 5 non-AD desktops banner shows up telling you to upgrade
+  - [ ] Banner goes away if you reduce number of non-AD desktops to less or equal 5
   - [ ] Installer in GUI mode successfully uninstalls Authentication Package (logging in is not possible)
   - [ ] Installer successfully uninstalls Authentication Package (logging in is not possible) when invoked from command line
 
@@ -1377,7 +1372,6 @@ With an SSH node registered to the Teleport cluster:
 
 - [ ] Verify you are able to connect to the SSH node using openssh with the generated `ssh_config` in the destination directory
 - [ ] Verify you are able to connect to the SSH node using `tsh` with the identity file in the destination directory
-- [ ] Verify you are able to connect to the SSH node using the SSH multiplexer service
 
 With a Postgres DB registered to the Teleport cluster:
 
@@ -1388,8 +1382,6 @@ With a Postgres DB registered to the Teleport cluster:
 With a Kubernetes cluster registered to the Teleport cluster:
 
 - [ ] Verify the `kubeconfig` produced by a Kubernetes output can be used to run basic commands (e.g `kubectl get pods`)
-  - [ ] With ALPN routing
-  - [ ] Without ALPN routing
 
 With a HTTP application registered to the Teleport cluster:
 
@@ -1406,28 +1398,18 @@ TODO(lxea): replace links with actual docs once merged
 [Host users creation docs](../../docs/pages/server-access/guides/host-user-creation.mdx)
 [Host users creation RFD](../../rfd/0057-automatic-user-provisioning.md)
 -->
-Host users are considered "managed" when they belong to one of the teleport system groups: `teleport-system`, `teleport-keep`. Users outside of these groups are considered "unmanaged". Any users in the `teleport-static` group are
-also managed, but not considered for role-based host user creation.
 
 - Verify host users creation functionality
   - [ ] non-existing users are created automatically
-  - [ ] non-existing configured groups are created automatically
   - [ ] users are added to groups
-    - [ ] created and/or managed users are added to the `teleport-system` group when `create_host_user_mode: "insecure-drop"`
-    - [ ] created and/or managed users are added to the `teleport-keep` group when `create_host_user_mode: "keep"`
-  - [ ] managed users have their groups reconciled to reflect any `host_groups` changes (additions and removals)
-  - [ ] failure to create or update host users does not bail out of SSH connections when host user already exists (can be forced by setting `create_host_user_mode: "off"`)
-  - [ ] users belonging to `teleport-system` are cleaned up after their session ends
-    - [ ] cleanup occurs if a program was left running after session ends
-  - [ ] users belonging to `teleport-keep` are not cleaned up after their session ends
+    - [ ] non-existing configured groups are created
+	- [ ] created users are added to the `teleport-system` group
+  - [ ] users are cleaned up after their session ends
+	- [ ] cleanup occurs if a program was left running after session ends
   - [ ] sudoers file creation is successful
-    - [ ] invalid sudoers files are _not_ created
-    - [ ] failure to write sudoers file, such as for invalid entries, does not bail out of SSH connections
-  - [ ] unmanaged host users are accessible over SSH
-    - [ ] unmanaged host users are not modified when `teleport-keep` is not included in `host_groups`
-    - [ ] unmanaged host users are modified when `teleport-keep` is included in `host_groups`
+	- [ ] Invalid sudoers files are _not_ created
+  - [ ] existing host users are not modified
   - [ ] setting `disable_create_host_user: true` stops user creation from occurring
-  - [ ] setting `create_host_user_default_shell: <bash, zsh, fish, etc.>` should set the default shell for a newly created host user to the chosen shell (validated by confirming shell path has been written to the end of the user's record in `/etc/passwd`)
 
 ## CA rotations
 

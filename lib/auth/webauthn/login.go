@@ -29,7 +29,6 @@ import (
 
 	"github.com/go-webauthn/webauthn/protocol"
 	wan "github.com/go-webauthn/webauthn/webauthn"
-	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -131,12 +130,7 @@ func (f *loginFlow) begin(ctx context.Context, user string, challengeExtensions 
 			return !resident1 && resident2
 		})
 
-		u = newWebUser(webUserOpts{
-			name:             user,
-			webID:            webID,
-			devices:          devices,
-			credentialIDOnly: true,
-		})
+		u = newWebUser(user, webID, true /* credentialIDOnly */, devices)
 
 		// Let's make sure we have at least one registered credential here, since we
 		// have to allow zero credentials for passwordless below.
@@ -291,15 +285,7 @@ func (f *loginFlow) finish(ctx context.Context, user string, resp *wantypes.Cred
 	case dev.GetU2F() != nil:
 		rpID = f.U2F.AppID
 	}
-	u := newWebUser(webUserOpts{
-		name:    user,
-		webID:   webID,
-		devices: []*types.MFADevice{dev},
-		currentFlags: &credentialFlags{
-			BE: parsedResp.Response.AuthenticatorData.Flags.HasBackupEligible(),
-			BS: parsedResp.Response.AuthenticatorData.Flags.HasBackupState(),
-		},
-	})
+	u := newWebUser(user, webID, false /* credentialIDOnly */, []*types.MFADevice{dev})
 
 	// Fetch the previously-stored SessionData, so it's checked against the user
 	// response.
@@ -442,7 +428,6 @@ func updateCredentialAndTimestamps(
 	switch d := dest.Device.(type) {
 	case *types.MFADevice_U2F:
 		d.U2F.Counter = credential.Authenticator.SignCount
-
 	case *types.MFADevice_Webauthn:
 		d.Webauthn.SignatureCounter = credential.Authenticator.SignCount
 
@@ -452,27 +437,6 @@ func updateCredentialAndTimestamps(
 		if discoverableLogin && !d.Webauthn.ResidentKey {
 			d.Webauthn.ResidentKey = true
 		}
-
-		// Backfill BE/BS bits.
-		if d.Webauthn.CredentialBackupEligible == nil {
-			d.Webauthn.CredentialBackupEligible = &gogotypes.BoolValue{
-				Value: credential.Flags.BackupEligible,
-			}
-			log.WithFields(log.Fields{
-				"device": dest.GetName(),
-				"be":     credential.Flags.BackupEligible,
-			}).Debug("Backfilled Webauthn device BE flag")
-		}
-		if d.Webauthn.CredentialBackedUp == nil {
-			d.Webauthn.CredentialBackedUp = &gogotypes.BoolValue{
-				Value: credential.Flags.BackupState,
-			}
-			log.WithFields(log.Fields{
-				"device": dest.GetName(),
-				"bs":     credential.Flags.BackupState,
-			}).Debug("Backfilled Webauthn device BS flag")
-		}
-
 	default:
 		return trace.BadParameter("unexpected device type for webauthn: %T", d)
 	}

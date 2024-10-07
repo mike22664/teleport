@@ -64,7 +64,6 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Kubernetes),
     });
-    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Kubernetes),
@@ -155,7 +154,6 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Kubernetes),
     });
-    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Kubernetes),
@@ -239,7 +237,6 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Database),
     });
-    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Database),
@@ -326,7 +323,6 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Database),
     });
-    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Database),
@@ -399,7 +395,6 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Server),
     });
-    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Server),
@@ -497,7 +492,6 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
         },
       },
     });
-    discoverCtx.nextStep = jest.fn();
     const spyUpdateAgentMeta = jest
       .spyOn(discoverCtx, 'updateAgentMeta')
       .mockImplementation(x => x);
@@ -571,7 +565,6 @@ describe('onProceed correctly deduplicates, removes static traits, updates meta,
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Server),
     });
-    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(ResourceKind.Server),
@@ -646,7 +639,6 @@ describe('static and dynamic traits are correctly separated and correctly create
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(resourceKind),
     });
-    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta = {
       ...discoverCtx.agentMeta,
       ...getMeta(resourceKind),
@@ -733,7 +725,6 @@ describe('calls to nextStep respects number of steps to skip', () => {
     const discoverCtx = defaultDiscoverContext({
       resourceSpec: defaultResourceSpec(ResourceKind.Database),
     });
-    discoverCtx.nextStep = jest.fn();
     discoverCtx.agentMeta.autoDiscovery = {
       config: { name: '', discoveryGroup: '', aws: [] },
     };

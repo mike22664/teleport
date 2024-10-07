@@ -24,7 +24,7 @@ import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'shared/components/ToolTip';
 
 import ActionMenu from './ActionMenu';
-import { AlertDropdown } from './AlertDropdown';
+import { WarningDropdown } from './WarningDropdown';
 
 import type { NotificationItem } from 'shared/components/Notification';
 
@@ -38,8 +38,8 @@ export default function TopBar(props: Props) {
     isSharingDirectory,
     onShareDirectory,
     onCtrlAltDel,
-    alerts,
-    onRemoveAlert,
+    warnings,
+    onRemoveWarning,
   } = props;
   const theme = useTheme();
 
@@ -80,7 +80,10 @@ export default function TopBar(props: Props) {
           >
             <Clipboard style={primaryOnTrue(isSharingClipboard)} pr={3} />
           </HoverTooltip>
-          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
+          <WarningDropdown
+            warnings={warnings}
+            onRemoveWarning={onRemoveWarning}
+          />
         </Flex>
         <ActionMenu
           onDisconnect={onDisconnect}
@@ -117,6 +120,6 @@ type Props = {
   onDisconnect: VoidFunction;
   onShareDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
-  alerts: NotificationItem[];
-  onRemoveAlert(id: string): void;
+  warnings: NotificationItem[];
+  onRemoveWarning(id: string): void;
 };

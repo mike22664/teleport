@@ -33,8 +33,6 @@ const LabelInput = styled.label<LabelInputProps>`
   display: block;
   font-size: ${p => p.theme.fontSizes[1]}px;
   width: 100%;
-  margin-bottom: ${props => props.theme.space[1]}px;
-  ${props => props.theme.typography.body3}
   ${space}
 `;
 
@@ -44,6 +42,7 @@ LabelInput.propTypes = {
 
 LabelInput.defaultProps = {
   hasError: false,
+  mb: 1,
 };
 
 LabelInput.displayName = 'LabelInput';

@@ -22,5 +22,3 @@ tokens:
   - kubernetes service
   - machine id
   - ssh service
-  - Teleport agent
-  - '[Dd]evice trust'

@@ -32,23 +32,21 @@ const options: Option[] = [
 ];
 
 export function Selects() {
-  const [selectedMulti, setSelectedMulti] = useState<readonly Option[]>(
-    options.slice(0, 2)
-  );
+  const [selectedMulti, setSelectedMulti] = useState(options.slice(0, 2));
   const [selectedSingle, setSelectedSingle] = useState(options[0]);
 
   return (
     <Flex flexDirection="column" width="330px" gap={10}>
       <Select
         value={selectedMulti}
-        onChange={options => setSelectedMulti(options)}
+        onChange={options => setSelectedMulti(options as Option[])}
         options={options}
         placeholder="Click to select a role"
         isMulti={true}
       />
       <Select
         value={selectedMulti}
-        onChange={options => setSelectedMulti(options)}
+        onChange={options => setSelectedMulti(options as Option[])}
         options={options}
         placeholder="Click to select a role"
         isMulti={true}
@@ -56,14 +54,14 @@ export function Selects() {
       />
       <Select
         value={selectedSingle}
-        onChange={option => setSelectedSingle(option)}
+        onChange={option => setSelectedSingle(option as Option)}
         options={options}
         placeholder="Click to select a role"
       />
       <Select
         isDisabled={true}
         value={selectedSingle}
-        onChange={option => setSelectedSingle(option)}
+        onChange={option => setSelectedSingle(option as Option)}
         options={options}
         placeholder="Click to select a role"
       />

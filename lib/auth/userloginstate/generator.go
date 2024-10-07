@@ -134,11 +134,17 @@ func (g *Generator) Generate(ctx context.Context, user types.User) (*userloginst
 		}
 	}
 
+	labels := make(map[string]string, len(user.GetAllLabels()))
+	for k, v := range user.GetAllLabels() {
+		labels[k] = v
+	}
+	labels[userloginstate.OriginalRolesAndTraitsSet] = "true"
+
 	// Create a new empty user login state.
 	uls, err := userloginstate.New(
 		header.Metadata{
 			Name:   user.GetName(),
-			Labels: user.GetAllLabels(),
+			Labels: labels,
 		}, userloginstate.Spec{
 			OriginalRoles:  utils.CopyStrings(user.GetRoles()),
 			OriginalTraits: originalTraits,

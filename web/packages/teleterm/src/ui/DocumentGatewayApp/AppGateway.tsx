@@ -26,7 +26,6 @@ import {
   Box,
   Alert,
   Indicator,
-  H1,
 } from 'design';
 
 import Validation from 'shared/components/Validation';
@@ -62,7 +61,7 @@ export function AppGateway(props: {
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="3" flexWrap="wrap" gap={2}>
-        <H1>App Connection</H1>
+        <Text typography="h3">App Connection</Text>
         {props.disconnectAttempt.status === 'error' && (
           <Alert>
             Could not close the connection: {props.disconnectAttempt.statusText}

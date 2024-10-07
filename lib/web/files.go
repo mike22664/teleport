@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
@@ -225,16 +224,22 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		return trace.Wrap(err)
 	}
 
-	pk, err := keys.ParsePrivateKey(f.sctx.cfg.Session.GetSSHPriv())
+	pk, err := keys.ParsePrivateKey(f.sctx.cfg.Session.GetPriv())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	key := &client.Key{
+		PrivateKey: pk,
+		Cert:       f.sctx.cfg.Session.GetPub(),
+		TLSCert:    f.sctx.cfg.Session.GetTLSCert(),
+	}
+
 	// Always acquire certs from the root cluster, that is where both the user and their devices are registered.
 	cert, err := f.sctx.cfg.RootClient.GenerateUserCerts(httpReq.Context(), proto.UserCertsRequest{
-		SSHPublicKey: pk.MarshalSSHPublicKey(),
-		Username:     f.sctx.GetUser(),
-		Expires:      time.Now().Add(time.Minute).UTC(),
+		PublicKey: key.MarshalSSHPublicKey(),
+		Username:  f.sctx.GetUser(),
+		Expires:   time.Now().Add(time.Minute).UTC(),
 		MFAResponse: &proto.MFAAuthenticateResponse{
 			Response: &proto.MFAAuthenticateResponse_Webauthn{
 				Webauthn: wantypes.CredentialAssertionResponseToProto(mfaResp.WebauthnAssertionResponse),
@@ -245,11 +250,8 @@ func (f *fileTransfer) issueSingleUseCert(webauthn string, httpReq *http.Request
 		return trace.Wrap(err)
 	}
 
-	sshCert, err := sshutils.ParseCertificate(cert.SSH)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	am, err := sshutils.AsAuthMethod(sshCert, pk.Signer)
+	key.Cert = cert.SSH
+	am, err := key.AsAuthMethod()
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -218,7 +218,7 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
 
-	var keyRing *KeyRing
+	var key *Key
 	if err := RetryWithRelogin(ctx, c.Client, func() error {
 		dbCertParams := ReissueParams{
 			RouteToCluster: c.Client.SiteName,
@@ -246,18 +246,18 @@ func (c *DBCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) {
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
 		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddDatabaseKeyRing(newKey); err != nil {
+			if err := c.Client.LocalAgent().AddDatabaseKey(newKey); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		keyRing = newKey
+		key = newKey
 		return trace.Wrap(err)
 	}); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	dbCert, err := keyRing.DBTLSCert(c.RouteToApp.ServiceName)
+	dbCert, err := key.DBTLSCert(c.RouteToApp.ServiceName)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
@@ -290,7 +290,7 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 		accessRequests = profile.ActiveRequests.AccessRequests
 	}
 
-	var keyRing *KeyRing
+	var key *Key
 	if err := RetryWithRelogin(ctx, c.Client, func() error {
 		appCertParams := ReissueParams{
 			RouteToCluster: c.Client.SiteName,
@@ -323,18 +323,18 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 		// If MFA was not required, we do not require certs be stored solely in memory.
 		// Save it to disk to avoid additional roundtrips for future requests.
 		if mfaRequired == proto.MFARequired_MFA_REQUIRED_NO {
-			if err := c.Client.LocalAgent().AddAppKeyRing(newKey); err != nil {
+			if err := c.Client.LocalAgent().AddAppKey(newKey); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		keyRing = newKey
+		key = newKey
 		return trace.Wrap(err)
 	}); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := keyRing.AppTLSCert(c.RouteToApp.Name)
+	appCert, err := key.AppTLSCert(c.RouteToApp.Name)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

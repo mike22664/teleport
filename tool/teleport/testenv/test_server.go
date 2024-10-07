@@ -166,7 +166,6 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	})
 	require.NoError(t, err)
 	cfg.Auth.StaticTokens = staticToken
-	cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 
 	// Disable session recording to prevent writing to disk after the test concludes.
 	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
@@ -705,7 +704,7 @@ func MakeDefaultAuthClient(t *testing.T, process *service.TeleportProcess) *auth
 	require.NoError(t, err)
 
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = cfg.Logger
+	authConfig.Log = utils.NewLogger()
 
 	client, err := authclient.Connect(context.Background(), authConfig)
 	require.NoError(t, err)

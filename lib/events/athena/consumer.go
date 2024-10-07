@@ -39,7 +39,7 @@ import (
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/parquet-go/parquet-go"
+	"github.com/segmentio/parquet-go"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -257,8 +257,8 @@ func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProces
 		default:
 			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
 				LockConfiguration: backend.LockConfiguration{
-					Backend:            c.backend,
-					LockNameComponents: []string{"athena_lock"},
+					Backend:  c.backend,
+					LockName: "athena_lock",
 					// TTL is higher then batchMaxInterval because we want to optimize
 					// for low backend writes.
 					TTL: 5 * c.batchMaxInterval,

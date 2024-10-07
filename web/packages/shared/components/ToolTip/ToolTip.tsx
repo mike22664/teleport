@@ -65,7 +65,7 @@ export const ToolTipInfo: React.FC<
         {...(trigger === 'hover' && triggerOnHoverProps)}
         {...(trigger === 'click' && triggerOnClickProps)}
         css={`
-          &:hover {
+          :hover {
             cursor: pointer;
           }
           vertical-align: middle;
@@ -125,7 +125,7 @@ const WarningIcon = styled(Icons.Warning)<{ $muteIconColor?: boolean }>`
   color: ${p =>
     p.$muteIconColor
       ? p.theme.colors.text.disabled
-      : p.theme.colors.interactive.solid.alert.default.background};
+      : p.theme.colors.warning.main};
 `;
 
 const ErrorIcon = styled(Icons.Warning)<{ $muteIconColor?: boolean }>`
@@ -134,5 +134,5 @@ const ErrorIcon = styled(Icons.Warning)<{ $muteIconColor?: boolean }>`
   color: ${p =>
     p.$muteIconColor
       ? p.theme.colors.text.disabled
-      : p.theme.colors.interactive.solid.danger.default.background};
+      : p.theme.colors.error.main};
 `;

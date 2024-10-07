@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -80,7 +81,7 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 			}},
 		}, localClient)
 
-		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{Integration: integrationNameWithoutIssuer})
+		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
 		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %T", err)
 	})
 
@@ -95,7 +96,7 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 				},
 			})
 
-			_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{Integration: integrationNameWithoutIssuer})
+			_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
 			require.NoError(t, err)
 		}
 	})
@@ -118,17 +119,29 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 
 	// Validate JWT against public key
 	key, err := jwt.New(&jwt.Config{
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		Clock:       resourceSvc.clock,
 		PublicKey:   publicKey,
 	})
 	require.NoError(t, err)
 
-	t.Run("without integration (v15 and lower clients) returns an error", func(t *testing.T) {
-		_, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+	t.Run("without integration (old clients)", func(t *testing.T) {
+		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{})
+		require.NoError(t, err)
+
+		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: resp.GetToken(),
+			Issuer:   publicURL,
+		})
+		require.NoError(t, err)
+		// Fails if the issuer is different
+		_, err = key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: resp.GetToken(),
+			Issuer:   publicURL + "3",
+		})
 		require.Error(t, err)
 	})
-
 	t.Run("with integration in rpc call but no issuer defined", func(t *testing.T) {
 		resp, err := resourceSvc.GenerateAWSOIDCToken(ctx, &integrationv1.GenerateAWSOIDCTokenRequest{
 			Integration: integrationNameWithoutIssuer,

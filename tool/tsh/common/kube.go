@@ -147,10 +147,10 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 	cluster := meta.GetClusterName()
 	kubeCluster := meta.GetKubeCluster()
-	var k *client.KeyRing
+	var k *client.Key
 
 	// Try loading existing keys.
-	k, err = tc.LocalAgent().GetKeyRing(cluster, client.WithKubeCerts{})
+	k, err = tc.LocalAgent().GetKey(cluster, client.WithKubeCerts{})
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -180,7 +180,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			}
 
 			// Cache the new cert on disk for reuse.
-			if err := tc.LocalAgent().AddKubeKeyRing(k); err != nil {
+			if err := tc.LocalAgent().AddKubeKey(k); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -631,23 +631,22 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// This operation takes a long time when the store has a lot of keys and when
 	// we call the function multiple times in parallel.
 	// Although client.LoadKeysToKubeFromStore function speeds up the process since
-	// it removes all transversals, it still has to read 2 different files from
-	// the disk and acquire a read lock on the key file:
-	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.crt
-	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER.key
+	// it removes all transversals, it still has to read 2 different files from the disk:
+	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
+	// - $TSH_HOME/keys/$PROXY/$USER
 	//
 	// In addition to these files, $TSH_HOME/$profile.yaml is also read from
 	// cf.GetProfile call above.
-	if keyPEM, certPEM, err := client.LoadKeysToKubeFromStore(
+	if kubeCert, privKey, err := client.LoadKeysToKubeFromStore(
 		profile,
 		cf.HomePath,
 		c.teleportCluster,
 		c.kubeCluster,
 	); err == nil {
-		crt, _ := tlsca.ParseCertificatePEM(certPEM)
+		crt, _ := tlsca.ParseCertificatePEM(kubeCert)
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
 			log.Debugf("Re-using existing TLS cert for Kubernetes cluster %q", c.kubeCluster)
-			return c.writeByteResponse(cf.Stdout(), certPEM, keyPEM, crt.NotAfter)
+			return c.writeByteResponse(cf.Stdout(), kubeCert, privKey, crt.NotAfter)
 		}
 	}
 
@@ -665,7 +664,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 
 	_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/GetKey")
 	// Try loading existing keys.
-	k, err := tc.LocalAgent().GetKeyRing(c.teleportCluster, client.WithKubeCerts{})
+	k, err := tc.LocalAgent().GetKey(c.teleportCluster, client.WithKubeCerts{})
 	span.End()
 
 	if err != nil && !trace.IsNotFound(err) {
@@ -770,7 +769,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	// Cache the new cert on disk for reuse.
-	if err := tc.LocalAgent().AddKubeKeyRing(k); err != nil {
+	if err := tc.LocalAgent().AddKubeKey(k); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -792,8 +791,8 @@ func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Pro
 	return nil
 }
 
-func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, keyRing *client.KeyRing, kubeClusterName string) error {
-	crt, err := keyRing.KubeX509Cert(kubeClusterName)
+func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
+	crt, err := key.KubeX509Cert(kubeClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -804,39 +803,34 @@ func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, keyRing *cli
 		expiry = expiry.Add(-1 * time.Minute)
 	}
 
-	cred, ok := keyRing.KubeTLSCredentials[kubeClusterName]
-	if !ok {
-		return trace.NotFound("TLS credential for kubernetes cluster %q not found", kubeClusterName)
-	}
-
-	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use
-	// hardware private keys for kube credentials (if possible)
-	keyPEM, err := cred.PrivateKey.SoftwarePrivateKeyPEM()
+	// TODO (Joerger): Create a custom k8s Auth Provider or Exec Provider to use non-rsa
+	// private keys for kube credentials (if possible)
+	rsaKeyPEM, err := key.PrivateKey.RSAPrivateKeyPEM()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(c.writeResponse(output, cred.Cert, keyPEM, expiry))
+	return trace.Wrap(c.writeResponse(output, key.KubeTLSCerts[kubeClusterName], rsaKeyPEM, expiry))
 }
 
 // writeByteResponse writes the exec credential response to the output stream.
-func (c *kubeCredentialsCommand) writeByteResponse(output io.Writer, kubeTLSCert, keyPEM []byte, expiry time.Time) error {
+func (c *kubeCredentialsCommand) writeByteResponse(output io.Writer, kubeTLSCert, rsaKeyPEM []byte, expiry time.Time) error {
 	// Indicate slightly earlier expiration to avoid the cert expiring
 	// mid-request, if possible.
 	if time.Until(expiry) > time.Minute {
 		expiry = expiry.Add(-1 * time.Minute)
 	}
 
-	return trace.Wrap(c.writeResponse(output, kubeTLSCert, keyPEM, expiry))
+	return trace.Wrap(c.writeResponse(output, kubeTLSCert, rsaKeyPEM, expiry))
 }
 
 // writeResponse writes the exec credential response to the output stream.
-func (c *kubeCredentialsCommand) writeResponse(output io.Writer, kubeTLSCert, keyPEM []byte, expiry time.Time) error {
+func (c *kubeCredentialsCommand) writeResponse(output io.Writer, kubeTLSCert, rsaKeyPEM []byte, expiry time.Time) error {
 	resp := &clientauthentication.ExecCredential{
 		Status: &clientauthentication.ExecCredentialStatus{
 			ExpirationTimestamp:   &metav1.Time{Time: expiry},
 			ClientCertificateData: string(kubeTLSCert),
-			ClientKeyData:         string(keyPEM),
+			ClientKeyData:         string(rsaKeyPEM),
 		},
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(kubeGroupVersion), resp)
@@ -1445,7 +1439,7 @@ type kubernetesStatus struct {
 	clusterAddr         string
 	teleportClusterName string
 	kubeClusters        []types.KubeCluster
-	credentials         *client.KeyRing
+	credentials         *client.Key
 	tlsServerName       string
 }
 
@@ -1455,7 +1449,7 @@ func fetchKubeStatus(ctx context.Context, tc *client.TeleportClient) (*kubernete
 	kubeStatus := &kubernetesStatus{
 		clusterAddr: tc.KubeClusterAddr(),
 	}
-	kubeStatus.credentials, err = tc.LocalAgent().GetCoreKeyRing()
+	kubeStatus.credentials, err = tc.LocalAgent().GetCoreKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

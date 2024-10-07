@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'whatwg-fetch';
-
 const crypt = require('crypto');
 const path = require('path');
 

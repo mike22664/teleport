@@ -25,7 +25,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"slices"
 	"strings"
@@ -39,7 +38,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -51,16 +49,15 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/migration"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -322,9 +319,6 @@ type InitConfig struct {
 	// StaticHostUsers is a service that manages host users that should be
 	// created on SSH nodes.
 	StaticHostUsers services.StaticHostUser
-
-	// Logger is the logger instance for the auth service to use.
-	Logger *slog.Logger
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -348,9 +342,9 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err := backend.RunWhileLocked(ctx,
 		backend.RunWhileLockedConfig{
 			LockConfiguration: backend.LockConfiguration{
-				Backend:            cfg.Backend,
-				LockNameComponents: []string{domainName},
-				TTL:                30 * time.Second,
+				Backend:  cfg.Backend,
+				LockName: domainName,
+				TTL:      30 * time.Second,
 			},
 			RefreshLockInterval: 20 * time.Second,
 		}, func(ctx context.Context) error {
@@ -1201,18 +1195,12 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 
 // GenerateIdentity generates identity for the auth server
 func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsNames []string) (*state.Identity, error) {
-	// TODO(nklaassen): split SSH and TLS keys for host identities.
-	key, err := cryptosuites.GenerateKey(context.Background(), cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.HostIdentity)
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sshPub, err := ssh.NewPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsPub, err := keys.MarshalPublicKey(key.Public())
+	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1224,14 +1212,9 @@ func GenerateIdentity(a *Server, id state.IdentityID, additionalPrincipals, dnsN
 			Role:                 id.Role,
 			AdditionalPrincipals: additionalPrincipals,
 			DNSNames:             dnsNames,
-			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
+			PublicSSHKey:         pub,
 			PublicTLSKey:         tlsPub,
 		})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	priv, err := keys.MarshalPrivateKey(key)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

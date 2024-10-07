@@ -222,6 +222,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newBotInstanceParser()
 		case types.KindInstance:
 			parser = newInstanceParser()
+		case types.KindSPIFFEFederation:
+			parser = newSPIFFEFederationParser()
 		case types.KindDevice:
 			parser = newDeviceParser()
 		case types.KindAccessGraphSecretPrivateKey:
@@ -230,8 +232,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAccessGraphSecretAuthorizedKeyParser()
 		case types.KindAccessGraphSettings:
 			parser = newAccessGraphSettingsParser()
-		case types.KindSPIFFEFederation:
-			parser = newSPIFFEFederationParser()
 		case types.KindStaticHostUser:
 			parser = newStaticHostUserParser()
 		default:
@@ -2546,6 +2546,34 @@ func baseTwoKeys(key backend.Key) (string, string, error) {
 	return string(parts[len(parts)-2]), string(parts[len(parts)-1]), nil
 }
 
+func newSPIFFEFederationParser() *spiffeFederationParser {
+	return &spiffeFederationParser{
+		baseParser: newBaseParser(backend.NewKey(spiffeFederationPrefix)),
+	}
+}
+
+type spiffeFederationParser struct {
+	baseParser
+}
+
+func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindSPIFFEFederation, types.V1, 0)
+	case types.OpPut:
+		federation, err := services.UnmarshalSPIFFEFederation(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		return types.Resource153ToLegacy(federation), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newAccessGraphSettingsParser() *accessGraphSettingsParser {
 	return &accessGraphSettingsParser{
 		baseParser: newBaseParser(backend.NewKey(clusterConfigPrefix, accessGraphSettingsPrefix)),
@@ -2575,34 +2603,6 @@ func (p *accessGraphSettingsParser) parse(event backend.Event) (types.Resource, 
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(settings), nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newSPIFFEFederationParser() *spiffeFederationParser {
-	return &spiffeFederationParser{
-		baseParser: newBaseParser(backend.NewKey(spiffeFederationPrefix)),
-	}
-}
-
-type spiffeFederationParser struct {
-	baseParser
-}
-
-func (p *spiffeFederationParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		return resourceHeader(event, types.KindSPIFFEFederation, types.V1, 0)
-	case types.OpPut:
-		federation, err := services.UnmarshalSPIFFEFederation(
-			event.Item.Value,
-			services.WithExpires(event.Item.Expires),
-			services.WithRevision(event.Item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err, "unmarshalling resource from event")
-		}
-		return types.Resource153ToLegacy(federation), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

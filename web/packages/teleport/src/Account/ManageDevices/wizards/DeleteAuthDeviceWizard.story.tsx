@@ -20,6 +20,8 @@ import React from 'react';
 
 import Dialog from 'design/Dialog';
 
+import { initialize, mswLoader } from 'msw-storybook-addon';
+
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport/index';
 
@@ -33,6 +35,7 @@ import { ReauthenticateStep } from './ReauthenticateStep';
 
 export default {
   title: 'teleport/Account/Manage Devices/Delete Device Wizard',
+  loaders: [mswLoader],
   decorators: [
     Story => {
       const ctx = createTeleportContext();
@@ -46,6 +49,8 @@ export default {
     },
   ],
 };
+
+initialize();
 
 export function Reauthenticate() {
   return <ReauthenticateStep {...stepProps} stepIndex={0} />;

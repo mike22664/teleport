@@ -22,7 +22,7 @@ import DialogConfirmation, {
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonSecondary, H2, Text } from 'design';
+import { ButtonIcon, ButtonSecondary, Text } from 'design';
 import { Cross } from 'design/Icon';
 
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
@@ -47,8 +47,10 @@ export function ResourceSearchErrors(props: {
         width: '100%',
       })}
     >
-      <DialogHeader justifyContent="space-between" alignItems="baseline">
-        <H2>Resource search errors</H2>
+      <DialogHeader justifyContent="space-between" mb={0} alignItems="baseline">
+        <Text typography="h4" bold>
+          Resource search errors
+        </Text>
         <ButtonIcon
           type="button"
           onClick={props.onCancel}
@@ -58,7 +60,7 @@ export function ResourceSearchErrors(props: {
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>
-        <Text typography="body2" color="text.slightlyMuted">
+        <Text typography="body1" color="text.slightlyMuted">
           <pre
             css={`
               padding: ${props => props.theme.space[2]}px;

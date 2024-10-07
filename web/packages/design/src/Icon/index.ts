@@ -62,7 +62,6 @@ export { ChatBubble } from './Icons/ChatBubble';
 export { ChatCircleSparkle } from './Icons/ChatCircleSparkle';
 export { Check } from './Icons/Check';
 export { CheckThick } from './Icons/CheckThick';
-export { Checks } from './Icons/Checks';
 export { ChevronCircleDown } from './Icons/ChevronCircleDown';
 export { ChevronCircleLeft } from './Icons/ChevronCircleLeft';
 export { ChevronCircleRight } from './Icons/ChevronCircleRight';

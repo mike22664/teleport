@@ -36,18 +36,14 @@ export function SlideTabs({
       <TabNav role="tablist" appearance={appearance} size={size}>
         {tabs.map((tabName, tabIndex) => {
           const selected = tabIndex === activeIndex;
-          let onClick;
-          if (!disabled && !isProcessing) {
-            onClick = (e: React.MouseEvent<HTMLLabelElement, MouseEvent>) => {
-              e.preventDefault();
-              onChange(tabIndex);
-            };
-          }
           return (
             <TabLabel
               role="tab"
               htmlFor={`${name}-${tabName}`}
-              onClick={onClick}
+              onClick={e => {
+                e.preventDefault();
+                onChange(tabIndex);
+              }}
               itemCount={tabs.length}
               key={`${tabName}-${tabIndex}`}
               className={tabIndex === activeIndex && 'selected'}
@@ -127,13 +123,14 @@ const TabLabel = styled.label<{
   processing?: boolean;
   disabled?: boolean;
 }>`
-  cursor: ${p => (p.processing || p.disabled ? 'default' : 'pointer')};
+  cursor: pointer;
   display: flex;
   justify-content: center;
   padding: 10px;
   width: ${props => 100 / props.itemCount}%;
   z-index: 1; /* Ensures that the label is above the background slider. */
-  opacity: ${p => (p.processing || p.disabled ? 0.5 : 1)};
+  opacity: ${p => (p.processing ? 0.5 : 1)};
+  pointer-events: ${p => (p.processing || p.disabled ? 'none' : 'auto')};
 `;
 
 const TabInput = styled.input`

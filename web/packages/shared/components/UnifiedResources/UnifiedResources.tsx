@@ -27,7 +27,14 @@ import React, {
 } from 'react';
 
 import styled from 'styled-components';
-import { Box, Flex, ButtonSecondary, Text, ButtonBorder } from 'design';
+import {
+  Box,
+  Flex,
+  ButtonLink,
+  ButtonSecondary,
+  Text,
+  ButtonBorder,
+} from 'design';
 import { Icon, Magnifier, PushPin } from 'design/Icon';
 import { Danger } from 'design/Alert';
 
@@ -442,47 +449,33 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     >
       <ErrorsContainer>
         {resourcesFetchAttempt.status === 'failed' && (
-          <Danger
-            mb={0}
-            bg="levels.sunken"
-            primaryAction={
-              // We don't want them to try another request with BAD REQUEST, it will just fail again.
-              resourcesFetchAttempt.statusCode !== 400 &&
-              resourcesFetchAttempt.statusCode !== 403 && {
-                content: 'Retry',
-                onClick: onRetryClicked,
-              }
-            }
-            details={resourcesFetchAttempt.statusText}
-          >
-            Could not fetch resources
+          <Danger mb={0}>
+            Could not fetch resources: {resourcesFetchAttempt.statusText}
+            {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
+            {resourcesFetchAttempt.statusCode !== 400 &&
+              resourcesFetchAttempt.statusCode !== 403 && (
+                <Box flex="0 0 auto" ml={2}>
+                  <ButtonLink onClick={onRetryClicked}>Retry</ButtonLink>
+                </Box>
+              )}
           </Danger>
         )}
         {getPinnedResourcesAttempt.status === 'error' && (
-          <Danger
-            mb={0}
-            bg="levels.sunken"
-            details={getPinnedResourcesAttempt.statusText}
-          >
-            Could not fetch pinned resources
+          <Danger mb={0}>
+            Could not fetch pinned resources:{' '}
+            {getPinnedResourcesAttempt.statusText}
           </Danger>
         )}
         {updatePinnedResourcesAttempt.status === 'error' && (
-          <Danger
-            mb={0}
-            bg="levels.sunken"
-            details={updatePinnedResourcesAttempt.statusText}
-          >
-            Could not update pinned resources:
+          <Danger mb={0}>
+            Could not update pinned resources:{' '}
+            {updatePinnedResourcesAttempt.statusText}
           </Danger>
         )}
         {unifiedResourcePreferencesAttempt?.status === 'error' && (
-          <Danger
-            mb={0}
-            bg="levels.sunken"
-            details={unifiedResourcePreferencesAttempt.statusText}
-          >
-            Could not fetch unified view preferences
+          <Danger mb={0}>
+            Could not fetch unified view preferences:{' '}
+            {unifiedResourcePreferencesAttempt.statusText}
           </Danger>
         )}
       </ErrorsContainer>
@@ -668,7 +661,7 @@ function generateUnifiedResourceKey(
 function NoPinned() {
   return (
     <Box p={8} mt={3} mx="auto" textAlign="center">
-      <Text typography="h1">You have not pinned any resources</Text>
+      <Text typography="h3">You have not pinned any resources</Text>
     </Box>
   );
 }
@@ -683,7 +676,7 @@ function NoResults({
   if (query) {
     return (
       <Text
-        typography="h1"
+        typography="h3"
         mt={9}
         mx="auto"
         justifyContent="center"

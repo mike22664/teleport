@@ -20,25 +20,18 @@ import React from 'react';
 
 import { Box, Flex, LabelInput } from 'design';
 
-import { GroupBase, OnChangeValue } from 'react-select';
-
-import { BoxProps } from 'design/Box';
-
 import { useAsync } from 'shared/hooks/useAsync';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useRule } from 'shared/components/Validation';
 
 import {
   AsyncProps,
-  Option,
   SelectCreatable,
   CreatableProps as SelectCreatableProps,
 } from '../Select';
 import { SelectCreatableAsync } from '../Select/Select';
 
 import { LabelTip, defaultRule } from './shared';
-
-import { resolveUndefinedOptions } from './FieldSelect';
 
 /**
  * Returns a styled SelectCreatable with label, input validation rule and error handling.
@@ -49,11 +42,7 @@ import { resolveUndefinedOptions } from './FieldSelect';
  * @param {string} formatCreateLabel - custom formatting for create label.
  * @returns SelectCreatable
  */
-export function FieldSelectCreatable<
-  Opt = Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Opt> = GroupBase<Opt>,
->({
+export function FieldSelectCreatable({
   components,
   toolTipContent = null,
   label,
@@ -77,25 +66,26 @@ export function FieldSelectCreatable<
   rule = defaultRule,
   stylesConfig,
   isSearchable = false,
+  isSimpleValue = false,
   autoFocus = false,
   isDisabled = false,
   elevated = false,
   inputId = 'select',
   markAsError = false,
   customProps,
-  defaultValue,
   ...styles
-}: CreatableProps<Opt, IsMulti, Group>) {
+}: CreatableProps) {
   const { valid, message } = useRule(rule(value));
   const hasError = Boolean(!valid);
   const labelText = hasError ? message : label;
   const $inputElement = (
-    <SelectCreatable<Opt, IsMulti, Group>
+    <SelectCreatable
       components={components}
       inputId={inputId}
       name={name}
       menuPosition={menuPosition}
       hasError={hasError || markAsError}
+      isSimpleValue={isSimpleValue}
       isSearchable={isSearchable}
       isClearable={isClearable}
       value={value}
@@ -116,7 +106,6 @@ export function FieldSelectCreatable<
       formatCreateLabel={formatCreateLabel}
       aria-label={ariaLabel}
       customProps={customProps}
-      defaultValue={defaultValue}
     />
   );
 
@@ -157,11 +146,7 @@ export function FieldSelectCreatable<
  * Note: It is not possible to re-fetch the initial call for options.
  * ReactSelect fetches them when the component mounts and then keeps in memory.
  */
-export function FieldSelectCreatableAsync<
-  Opt = Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Opt> = GroupBase<Opt>,
->({
+export function FieldSelectCreatableAsync({
   components,
   toolTipContent = null,
   label,
@@ -185,6 +170,7 @@ export function FieldSelectCreatableAsync<
   rule = defaultRule,
   stylesConfig,
   isSearchable = false,
+  isSimpleValue = false,
   autoFocus = false,
   isDisabled = false,
   elevated = false,
@@ -194,10 +180,9 @@ export function FieldSelectCreatableAsync<
   loadOptions,
   noOptionsMessage,
   defaultOptions,
-  defaultValue,
   ...styles
-}: AsyncProps<Opt, IsMulti, Group> & CreatableProps<Opt, IsMulti, Group>) {
-  const [attempt, runAttempt] = useAsync(resolveUndefinedOptions(loadOptions));
+}: AsyncProps & CreatableProps) {
+  const [attempt, runAttempt] = useAsync(loadOptions);
   const { valid, message } = useRule(rule(value));
   const hasError = Boolean(!valid);
   const labelText = hasError ? message : label;
@@ -209,6 +194,7 @@ export function FieldSelectCreatableAsync<
       name={name}
       menuPosition={menuPosition}
       hasError={hasError || markAsError}
+      isSimpleValue={isSimpleValue}
       isSearchable={isSearchable}
       isClearable={isClearable}
       value={value}
@@ -229,7 +215,6 @@ export function FieldSelectCreatableAsync<
       formatCreateLabel={formatCreateLabel}
       aria-label={ariaLabel}
       customProps={customProps}
-      defaultValue={defaultValue}
       loadOptions={async (input, option) => {
         const [options, error] = await runAttempt(input, option);
         if (error) {
@@ -237,11 +222,11 @@ export function FieldSelectCreatableAsync<
         }
         return options;
       }}
-      noOptionsMessage={obj => {
+      noOptionsMessage={() => {
         if (attempt.status === 'error') {
           return `Could not load options: ${attempt.error}`;
         }
-        return noOptionsMessage?.(obj) ?? 'No options';
+        return noOptionsMessage();
       }}
     />
   );
@@ -273,17 +258,12 @@ export function FieldSelectCreatableAsync<
   );
 }
 
-type CreatableProps<
-  Opt = Option,
-  IsMulti extends boolean = false,
-  Group extends GroupBase<Opt> = GroupBase<Opt>,
-> = SelectCreatableProps<Opt, IsMulti, Group> &
-  BoxProps & {
-    autoFocus?: boolean;
-    label?: string;
-    labelTip?: string;
-    toolTipContent?: React.ReactNode;
-    rule?: (options: OnChangeValue<Opt, IsMulti>) => () => unknown;
-    markAsError?: boolean;
-    ariaLabel?: string;
-  };
+type CreatableProps = SelectCreatableProps & {
+  autoFocus?: boolean;
+  label?: string;
+  rule?: (options: unknown) => () => unknown;
+  markAsError?: boolean;
+  ariaLabel?: string;
+  // styles
+  [key: string]: any;
+};

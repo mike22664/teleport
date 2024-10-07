@@ -17,13 +17,15 @@
  */
 
 import React from 'react';
-import { http, HttpResponse } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import { rest } from 'msw';
 
 import { noAccess, getAcl } from 'teleport/mocks/contexts';
 import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
 import {
+  ComponentWrapper,
   getDbMeta,
   getDbResourceSpec,
 } from 'teleport/Discover/Fixtures/databases';
@@ -34,20 +36,25 @@ import SetupAccess from './SetupAccess';
 
 export default {
   title: 'Teleport/Discover/Database/SetupAccess',
+  loaders: [mswLoader],
   parameters: {
     msw: {
       handlers: {
-        fetchUser: http.get(cfg.api.userWithUsernamePath, () =>
-          HttpResponse.json({
-            name: 'llama',
-            roles: ['access'],
-            traits: dynamicTraits,
-          })
+        fetchUser: rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
+          res(
+            ctx.json({
+              name: 'llama',
+              roles: ['access'],
+              traits: dynamicTraits,
+            })
+          )
         ),
       },
     },
   },
 };
+
+initialize();
 
 export const NoTraits = () => {
   const meta = getDbMeta();
@@ -70,7 +77,9 @@ NoTraits.parameters = {
   msw: {
     handlers: {
       fetchUser: [
-        http.get(cfg.api.userWithUsernamePath, () => HttpResponse.json({})),
+        rest.get(cfg.api.userWithUsernamePath, (req, res, ctx) =>
+          res(ctx.json({}))
+        ),
       ],
     },
   },
@@ -125,23 +134,15 @@ export const WithTraitsAwsPostgresAutoEnroll = () => {
 };
 
 export const WithTraitsAwsMySql = () => (
-  <TeleportProvider
-    resourceSpec={getDbResourceSpec(DatabaseEngine.MySql, DatabaseLocation.Aws)}
-    agentMeta={getDbMeta()}
-    resourceKind={ResourceKind.Database}
-  >
+  <ComponentWrapper>
     <SetupAccess />
-  </TeleportProvider>
+  </ComponentWrapper>
 );
 
 export const WithTraitsPostgres = () => (
-  <TeleportProvider
-    resourceSpec={getDbResourceSpec(DatabaseEngine.Postgres)}
-    agentMeta={getDbMeta()}
-    resourceKind={ResourceKind.Database}
-  >
+  <ComponentWrapper>
     <SetupAccess />
-  </TeleportProvider>
+  </ComponentWrapper>
 );
 
 export const WithTraitsMongo = () => (

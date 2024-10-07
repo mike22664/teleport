@@ -89,9 +89,6 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 			},
 			ClusterName:      "root",
 			SessionRecording: "node-sync",
-			Authentication: &config.AuthenticationConfig{
-				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			},
 		},
 	}
 
@@ -186,9 +183,6 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 			ClusterName:       "leaf1",
 			ProxyListenerMode: types.ProxyListenerMode_Multiplex,
 			SessionRecording:  "node-sync",
-			Authentication: &config.AuthenticationConfig{
-				SignatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-			},
 		},
 	}
 

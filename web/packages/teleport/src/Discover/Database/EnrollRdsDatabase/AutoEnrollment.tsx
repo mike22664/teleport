@@ -17,11 +17,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Text } from 'design';
+import { Text, Flex, ButtonSecondary } from 'design';
 import { FetchStatus } from 'design/DataTable/types';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 import { getErrMessage } from 'shared/utils/errorType';
-import { Alert } from 'design/Alert/Alert';
+import Alert from 'design/Alert/Alert';
 
 import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import {
@@ -215,13 +215,15 @@ export function AutoEnrollment({
       {showTable && (
         <>
           {tableData?.oneOfError && (
-            <Alert
-              primaryAction={{
-                content: 'Retry',
-                onClick: () => fetchRdsDatabases(emptyTableData(), vpc),
-              }}
-            >
-              {tableData.oneOfError}
+            <Alert>
+              <Flex alignItems="center" gap={2}>
+                {tableData.oneOfError}
+                <ButtonSecondary
+                  onClick={() => fetchRdsDatabases(emptyTableData(), vpc)}
+                >
+                  Retry
+                </ButtonSecondary>
+              </Flex>
             </Alert>
           )}
           <Text mt={3}>List of databases that will be auto enrolled:</Text>

@@ -578,16 +578,10 @@ type upstreamHandle struct {
 	sshServer *heartBeatInfo[*types.ServerV2]
 
 	// appServers track app server details.
-	appServers map[resourceKey]*heartBeatInfo[*types.AppServerV3]
-
-	// databaseServers track database server details.
-	databaseServers map[resourceKey]*heartBeatInfo[*types.DatabaseServerV3]
-
-	// kubernetesServers track kubernetesServers server details.
-	kubernetesServers map[resourceKey]*heartBeatInfo[*types.KubernetesServerV3]
+	appServers map[appServerKey]*heartBeatInfo[*types.AppServerV3]
 }
 
-type resourceKey struct {
+type appServerKey struct {
 	hostID, name string
 }
 

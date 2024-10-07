@@ -27,7 +27,6 @@ import { FlowStepProps } from '../Shared/GuidedFlow';
 
 import { ConnectGitHub } from './ConnectGitHub';
 import { GitHubFlowProvider } from './useGitHubFlow';
-import { Finish } from './Finish';
 
 const Provider = ({ children }) => {
   const ctx = createTeleportContext();
@@ -48,12 +47,6 @@ export default {
 export const RepoRules = () => (
   <Provider>
     <ConnectGitHub {...props} />
-  </Provider>
-);
-
-export const Finished = () => (
-  <Provider>
-    <Finish />
   </Provider>
 );
 

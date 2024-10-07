@@ -28,16 +28,13 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -364,48 +361,21 @@ func botIdentityFromAuth(
 	if ident == nil || client == nil {
 		return nil, trace.BadParameter("renewIdentityWithAuth must be called with non-nil client and identity")
 	}
-
-	// Always generate a new key when refreshing the identity. This limits
-	// usefulness of compromised keys to the lifetime of their associated cert,
-	// and allows for new keys to follow any changes to the signature algorithm
-	// suite.
-	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(client),
-		cryptosuites.HostIdentity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPubKey, err := ssh.NewPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPub := ssh.MarshalAuthorizedKey(sshPubKey)
-	tlsPub, err := keys.MarshalPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
 	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		SSHPublicKey: sshPub,
-		TLSPublicKey: tlsPub,
-		Username:     ident.X509Cert.Subject.CommonName,
-		Expires:      time.Now().Add(ttl),
+		PublicKey: ident.PublicKeyBytes,
+		Username:  ident.X509Cert.Subject.CommonName,
+		Expires:   time.Now().Add(ttl),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "calling GenerateUserCerts")
 	}
 
-	newIdentity, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: privateKeyPEM,
-		PublicKeyBytes:  sshPub,
-		TokenHashBytes:  ident.TokenHashBytes,
-	}, certs)
+	newIdentity, err := identity.ReadIdentityFromStore(
+		ident.Params(),
+		certs,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading renewed identity")
 	}
@@ -430,6 +400,11 @@ func botIdentityFromToken(
 
 	log.InfoContext(ctx, "Fetching bot identity using token")
 
+	tlsPrivateKey, sshPublicKey, tlsPublicKey, err := generateKeys()
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to generate new keypairs")
+	}
+
 	token, err := cfg.Onboarding.Token()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -441,8 +416,10 @@ func botIdentityFromToken(
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		JoinMethod: cfg.Onboarding.JoinMethod,
-		Expires:    &expires,
+		PublicTLSKey: tlsPublicKey,
+		PublicSSHKey: sshPublicKey,
+		JoinMethod:   cfg.Onboarding.JoinMethod,
+		Expires:      &expires,
 
 		// Below options are effectively ignored if AuthClient is not-nil
 		Insecure:           cfg.Insecure,
@@ -484,26 +461,16 @@ func botIdentityFromToken(
 		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
 	}
 
-	result, err := join.Register(ctx, params)
+	certs, err := join.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPub, err := ssh.NewPublicKey(result.PrivateKey.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	sha := sha256.Sum256([]byte(params.Token))
 	tokenHash := hex.EncodeToString(sha[:])
 	ident, err := identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: privateKeyPEM,
-		PublicKeyBytes:  ssh.MarshalAuthorizedKey(sshPub),
+		PrivateKeyBytes: tlsPrivateKey,
+		PublicKeyBytes:  sshPublicKey,
 		TokenHashBytes:  []byte(tokenHash),
-	}, result.Certs)
+	}, certs)
 	return ident, trace.Wrap(err)
 }

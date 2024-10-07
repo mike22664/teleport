@@ -83,8 +83,8 @@ export function DesktopSession(props: State) {
     setClipboardSharingState,
     onShareDirectory,
     onCtrlAltDel,
-    alerts,
-    onRemoveAlert,
+    warnings,
+    onRemoveWarning,
     fetchAttempt,
     tdpConnection,
     wsConnection,
@@ -137,8 +137,8 @@ export function DesktopSession(props: State) {
         clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
         onShareDirectory={onShareDirectory}
         onCtrlAltDel={onCtrlAltDel}
-        alerts={alerts}
-        onRemoveAlert={onRemoveAlert}
+        warnings={warnings}
+        onRemoveWarning={onRemoveWarning}
       />
 
       {screenState.screen === 'anotherSessionActive' && (

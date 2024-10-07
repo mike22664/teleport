@@ -268,7 +268,7 @@ func (c *Client) readClientSize() error {
 				"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
 				s.Width, s.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
 			)
-			if err := c.sendTDPAlert(err.Error(), tdp.SeverityError); err != nil {
+			if err := c.sendTDPNotification(err.Error(), tdp.SeverityError); err != nil {
 				return trace.Wrap(err)
 			}
 			return trace.Wrap(err)
@@ -278,8 +278,8 @@ func (c *Client) readClientSize() error {
 	}
 }
 
-func (c *Client) sendTDPAlert(message string, severity tdp.Severity) error {
-	return c.cfg.Conn.WriteMessage(tdp.Alert{Message: message, Severity: severity})
+func (c *Client) sendTDPNotification(message string, severity tdp.Severity) error {
+	return c.cfg.Conn.WriteMessage(tdp.Notification{Message: message, Severity: severity})
 }
 
 func (c *Client) startRustRDP(ctx context.Context) error {
@@ -351,7 +351,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 		defer C.free_string(res.message)
 	}
 
-	// If the client exited with an error, send a TDP notification and return it.
+	// If the client exited with an error, send a tdp error notification and return it.
 	if res.err_code != C.ErrCodeSuccess {
 		var err error
 
@@ -361,7 +361,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 			err = trace.Errorf("RDP client exited with an unknown error")
 		}
 
-		c.sendTDPAlert(err.Error(), tdp.SeverityError)
+		c.sendTDPNotification(err.Error(), tdp.SeverityError)
 		return err
 	}
 
@@ -372,9 +372,7 @@ func (c *Client) startRustRDP(ctx context.Context) error {
 	}
 
 	c.cfg.Logger.InfoContext(ctx, message)
-
-	// TODO(zmb3): convert this to severity error and ensure it renders in the UI
-	c.sendTDPAlert(message, tdp.SeverityInfo)
+	c.sendTDPNotification(message, tdp.SeverityInfo)
 
 	return nil
 }

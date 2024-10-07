@@ -441,7 +441,7 @@ func testDatabaseLogin(t *testing.T) {
 			}
 			args := append([]string{
 				// default --db-user and --db-name are selected from roles.
-				"db", "login", "--insecure",
+				"db", "login",
 			}, selectors...)
 			args = append(args, test.extraLoginOptions...)
 

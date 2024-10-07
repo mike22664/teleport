@@ -22,7 +22,9 @@ import { Auth2faType } from 'shared/services';
 
 import Dialog from 'design/Dialog';
 
-import { http, HttpResponse, delay } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+
+import { rest } from 'msw';
 
 import { DeviceUsage } from 'teleport/services/auth';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -39,6 +41,7 @@ import { ReauthenticateStep } from './ReauthenticateStep';
 
 export default {
   title: 'teleport/Account/Manage Devices/Add Device Wizard',
+  loaders: [mswLoader],
   decorators: [
     Story => {
       const ctx = createTeleportContext();
@@ -52,6 +55,8 @@ export default {
     },
   ],
 };
+
+initialize();
 
 export function Reauthenticate() {
   return <ReauthenticateStep {...stepProps} />;
@@ -96,9 +101,9 @@ export function CreateMfaAppQrCodeLoading() {
 CreateMfaAppQrCodeLoading.parameters = {
   msw: {
     handlers: [
-      http.post(
+      rest.post(
         cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'),
-        async () => await delay('infinite')
+        (req, res, ctx) => res(ctx.delay('infinite'))
       ),
     ],
   },
@@ -110,15 +115,9 @@ export function CreateMfaAppQrCodeFailed() {
 CreateMfaAppQrCodeFailed.parameters = {
   msw: {
     handlers: [
-      http.post(
+      rest.post(
         cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'),
-        () =>
-          HttpResponse.json(
-            {
-              error: { message: 'Whoops, something went wrong.' },
-            },
-            { status: 500 }
-          )
+        (req, res, ctx) => res(ctx.status(500))
       ),
     ],
   },
@@ -133,9 +132,9 @@ export function CreateMfaApp() {
 CreateMfaApp.parameters = {
   msw: {
     handlers: [
-      http.post(
+      rest.post(
         cfg.getMfaCreateRegistrationChallengeUrl('privilege-token'),
-        () => HttpResponse.json({ totp: { qrCode: dummyQrCode } })
+        (req, res, ctx) => res(ctx.json({ totp: { qrCode: dummyQrCode } }))
       ),
     ],
   },

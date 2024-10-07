@@ -21,7 +21,7 @@ import styled from 'styled-components';
 import ReactSelect from 'react-select';
 
 import Box from 'design/Box';
-import { Text } from 'design';
+import Text from 'design/Text';
 import * as Icons from 'design/Icon';
 import { StyledSelect } from 'shared/components/Select';
 import Input from 'design/Input';
@@ -33,11 +33,9 @@ import Card from 'design/Card';
 import ButtonIcon from 'design/ButtonIcon';
 import FieldInput from 'shared/components/FieldInput';
 
-import { Alert } from 'design/Alert';
+import Alert from 'design/Alert';
 
 import Link from 'design/Link';
-
-import { H2 } from 'design';
 
 import cfg from 'teleport/config';
 
@@ -133,7 +131,9 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
       <Validation>
         {({ validator }) => (
           <Box mt="3">
-            <H2 mb="3">Step 2: Input Your GitHub Account Info</H2>
+            <Text bold fontSize={4} mb="3">
+              Step 2: Input Your GitHub Account Info
+            </Text>
             <Text mb="3">
               These fields will be combined with your bot's permissions to
               create a join token and generate a sample GitHub Actions file.
@@ -190,7 +190,7 @@ export function ConnectGitHub({ nextStep, prevStep }: FlowStepProps) {
                         <Text ml="1">Ref Type</Text>
                         <RefTypeSelect>
                           <ReactSelect
-                            isDisabled={isLoading}
+                            disabled={isLoading}
                             isMulti={false}
                             value={repoRules[i].refType}
                             onChange={o => handleChange(i, 'refType', o)}

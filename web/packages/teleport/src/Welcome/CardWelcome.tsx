@@ -17,15 +17,19 @@
  */
 
 import React from 'react';
-import { ButtonPrimary, H2, Subtitle2 } from 'design';
+import { ButtonPrimary, Text } from 'design';
 
 import { OnboardCard } from 'design/Onboard/OnboardCard';
 
 export function CardWelcome({ title, subTitle, btnText, onClick }: Props) {
   return (
     <OnboardCard center>
-      <H2 mb={3}>{title}</H2>
-      <Subtitle2 mb="16px">{subTitle}</Subtitle2>
+      <Text mb="8px" typography="h4">
+        {title}
+      </Text>
+      <Text mb="16px" typography="subtitle1" fontWeight="light">
+        {subTitle}
+      </Text>
       <ButtonPrimary width="100%" onClick={onClick}>
         {btnText}
       </ButtonPrimary>

@@ -78,18 +78,7 @@ func NewApp(conf Config) (*App, error) {
 		teleport:   conf.Client,
 		statusSink: conf.StatusSink,
 	}
-	app.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
-		Client:     conf.Client,
-		PluginType: types.PluginTypePagerDuty,
-		PluginName: pluginName,
-		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
-			return &common.Recipient{
-				Name: name,
-				ID:   name,
-				Kind: common.RecipientKindSchedule,
-			}, nil
-		},
-	})
+
 	app.mainJob = lib.NewServiceJob(app.run)
 
 	return app, nil
@@ -184,6 +173,19 @@ func (a *App) init(ctx context.Context) error {
 		}
 	}
 
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:     a.teleport,
+		PluginType: types.PluginTypePagerDuty,
+		PluginName: pluginName,
+		FetchRecipientCallback: func(_ context.Context, name string) (*common.Recipient, error) {
+			return &common.Recipient{
+				Name: name,
+				ID:   name,
+				Kind: common.RecipientKindSchedule,
+			}, nil
+		},
+	})
+
 	if pong, err = a.checkTeleportVersion(ctx); err != nil {
 		return trace.Wrap(err)
 	}
@@ -218,7 +220,7 @@ func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, err
 		log.Error("Unable to get Teleport server version")
 		return pong, trace.Wrap(err)
 	}
-	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 

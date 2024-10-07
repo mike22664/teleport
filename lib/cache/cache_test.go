@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -2299,7 +2300,7 @@ func TestUserTasks(t *testing.T) {
 
 	testResources153(t, p, testFuncs153[*usertasksv1.UserTask]{
 		newResource: func(name string) (*usertasksv1.UserTask, error) {
-			return newUserTasks(t, name), nil
+			return newUserTasks(t), nil
 		},
 		create: func(ctx context.Context, item *usertasksv1.UserTask) error {
 			_, err := p.userTasks.CreateUserTask(ctx, item)
@@ -2317,22 +2318,30 @@ func TestUserTasks(t *testing.T) {
 	})
 }
 
-func newUserTasks(t *testing.T, name string) *usertasksv1.UserTask {
+func newUserTasks(t *testing.T) *usertasksv1.UserTask {
 	t.Helper()
 
-	return &usertasksv1.UserTask{
-		Kind:    types.KindUserTask,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: name,
+	ut, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+		Integration: "my-integration",
+		TaskType:    usertasks.TaskTypeDiscoverEC2,
+		IssueType:   "ec2-ssm-agent-not-registered",
+		State:       "OPEN",
+		DiscoverEc2: &usertasksv1.DiscoverEC2{
+			AccountId: "123456789012",
+			Region:    "us-east-1",
+			Instances: map[string]*usertasksv1.DiscoverEC2Instance{
+				"i-123": {
+					InstanceId:      "i-123",
+					DiscoveryConfig: "dc01",
+					DiscoveryGroup:  "dg01",
+					SyncTime:        timestamppb.Now(),
+				},
+			},
 		},
-		Spec: &usertasksv1.UserTaskSpec{
-			Integration: "my-integration",
-			TaskType:    usertasks.TaskTypeDiscoverEC2,
-			IssueType:   "my-issue-type",
-			DiscoverEc2: &usertasksv1.DiscoverEC2{},
-		},
-	}
+	})
+	require.NoError(t, err)
+
+	return ut
 }
 
 // TestDiscoveryConfig tests that CRUD operations on DiscoveryConfig resources are
@@ -3439,12 +3448,12 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAccessMonitoringRule:    types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 		types.KindCrownJewel:              types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:          types.Resource153ToLegacy(newDatabaseObject(t, "test")),
-		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
 		types.KindSPIFFEFederation:        types.Resource153ToLegacy(newSPIFFEFederation("test")),
+		types.KindAccessGraphSettings:     types.Resource153ToLegacy(newAccessGraphSettings(t)),
 		types.KindStaticHostUser:          types.Resource153ToLegacy(newStaticHostUser(t, "test")),
+		types.KindUserTask:                types.Resource153ToLegacy(newUserTasks(t)),
 		types.KindAutoUpdateConfig:        types.Resource153ToLegacy(newAutoUpdateConfig(t)),
 		types.KindAutoUpdateVersion:       types.Resource153ToLegacy(newAutoUpdateVersion(t)),
-		types.KindUserTask:                types.Resource153ToLegacy(newUserTasks(t, "test")),
 	}
 
 	for name, cfg := range cases {

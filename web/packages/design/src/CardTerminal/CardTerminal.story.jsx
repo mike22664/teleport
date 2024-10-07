@@ -19,6 +19,7 @@
 import React from 'react';
 
 import { MemoryRouter } from 'react-router';
+import { Route } from 'teleport/components/Router';
 
 import cfg from 'teleport/config';
 
@@ -28,14 +29,11 @@ export default {
   title: 'Design/Card/Terminal',
 };
 
-export const Blank = () => (
+export const Cards = () => (
   <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
-    <CardTerminal title="Some Title" />
-  </MemoryRouter>
-);
-
-export const Login = () => (
-  <MemoryRouter initialEntries={[cfg.routes.loginTerminalRedirect]}>
-    <CardTerminalLogin />
+    <Route path={cfg.routes.loginTerminalRedirect + '?auth=MyAuth'}>
+      <CardTerminal />
+      <CardTerminalLogin />
+    </Route>
   </MemoryRouter>
 );

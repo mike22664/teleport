@@ -24,9 +24,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/johannesboyne/gofakes3"
@@ -43,31 +41,12 @@ func TestThirdpartyStreams(t *testing.T) {
 	backend := s3mem.New(s3mem.WithTimeSource(timeSource))
 	faker := gofakes3.New(backend, gofakes3.WithLogger(gofakes3.GlobalLog()))
 	server := httptest.NewServer(faker.Server())
-	defer server.Close()
-
-	bucketName := fmt.Sprintf("teleport-test-%v", uuid.New().String())
-
-	config := aws.Config{
-		Credentials:  credentials.NewStaticCredentialsProvider("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY", ""),
-		Region:       "us-west-1",
-		BaseEndpoint: aws.String(server.URL),
-	}
-
-	s3Client := s3.NewFromConfig(config, func(o *s3.Options) {
-		o.UsePathStyle = true
-	})
-
-	// Create the bucket.
-	_, err := s3Client.CreateBucket(context.Background(), &s3.CreateBucketInput{
-		Bucket: aws.String(bucketName),
-	})
-	require.NoError(t, err)
 
 	handler, err := NewHandler(context.Background(), Config{
-		AWSConfig:                   &config,
+		Credentials:                 credentials.NewStaticCredentials("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY", ""),
 		Region:                      "us-west-1",
 		Path:                        "/test/",
-		Bucket:                      bucketName,
+		Bucket:                      fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Endpoint:                    server.URL,
 		DisableServerSideEncryption: true,
 	})

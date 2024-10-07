@@ -20,6 +20,9 @@ package config
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"fmt"
@@ -48,7 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -322,7 +324,7 @@ func TestConfigReading(t *testing.T) {
 				},
 			},
 			Storage: backend.Config{
-				Type: "bolt",
+				Type: "sqlite",
 			},
 			DataDir: "/path/to/data",
 			CAPin:   apiutils.Strings([]string{"rsa256:123", "rsa256:456"}),
@@ -1539,7 +1541,7 @@ func makeConfigFixture() string {
 	conf.Logger.Output = "stderr"
 	conf.Logger.Severity = "INFO"
 	conf.Logger.Format = LogFormat{Output: "text"}
-	conf.Storage.Type = "bolt"
+	conf.Storage.Type = "sqlite"
 	conf.CAPin = []string{"rsa256:123", "rsa256:456"}
 
 	// auth service:
@@ -3427,10 +3429,8 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-				},
-				Credentials: &servicecfg.JamfCredentials{
-					Username: "llama",
-					Password: password,
+					Username:    "llama",
+					Password:    password,
 				},
 			},
 		},
@@ -3443,11 +3443,9 @@ jamf_service:
   client_secret_file: %v`, passwordFile),
 			want: servicecfg.JamfConfig{
 				Spec: &types.JamfSpecV1{
-					Enabled:     true,
-					ApiEndpoint: "https://yourtenant.jamfcloud.com",
-				},
-				Credentials: &servicecfg.JamfCredentials{
-					ClientID:     "llama-UUID",
+					Enabled:      true,
+					ApiEndpoint:  "https://yourtenant.jamfcloud.com",
+					ClientId:     "llama-UUID",
 					ClientSecret: password,
 				},
 			},
@@ -3470,6 +3468,8 @@ jamf_service:
 					Name:        "jamf2",
 					SyncDelay:   types.Duration(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+					Username:    "llama",
+					Password:    password,
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
@@ -3480,10 +3480,6 @@ jamf_service:
 						},
 						{},
 					},
-				},
-				Credentials: &servicecfg.JamfCredentials{
-					Username: "llama",
-					Password: password,
 				},
 				ExitOnSync: true,
 			},
@@ -4947,7 +4943,7 @@ func TestDiscoveryConfig(t *testing.T) {
 func TestProxyUntrustedCert(t *testing.T) {
 	t.Parallel()
 
-	caPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	caPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 
 	// Generate a CA for the test that will not be trusted.
@@ -4963,7 +4959,7 @@ func TestProxyUntrustedCert(t *testing.T) {
 	require.NoError(t, err)
 
 	// Generate a leaf cert signed by the untrusted CA.
-	leafPriv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	leafPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	leafCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
 		PublicKey: leafPriv.Public(),

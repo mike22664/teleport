@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { ButtonWarning, ButtonSecondary, Flex, Alert } from 'design';
+import { ButtonWarning, ButtonSecondary, Flex, Text, Alert } from 'design';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 
 import Dialog, {
@@ -26,8 +26,6 @@ import Dialog, {
   DialogContent,
   DialogFooter,
 } from 'design/Dialog';
-
-import { P } from 'design/Text/Text';
 
 import { Attempt } from 'shared/hooks/useAsync';
 
@@ -69,20 +67,20 @@ export function RequestDelete({
           <Alert kind="danger" children={deleteRequestAttempt.statusText} />
         )}
         <Flex flexWrap="wrap" gap={1} alignItems="baseline">
-          <P>
+          <Text typography="body2">
             You are about to delete a request from <strong>{user}</strong> for
             the following roles:
-          </P>
+          </Text>
           <RolesRequested roles={roles} />
         </Flex>
         {requestState === 'APPROVED' && (
           <>
-            <P mt={3} mb={2}>
+            <Text mt={3} mb={2} typography="body2">
               Since this access request has already been approved, deleting the
               request now will NOT remove the user's access to these roles. If
               you would like to lock the user's access to the requested roles,
               you can run:
-            </P>
+            </Text>
             <TextSelectCopy
               mt={2}
               text={`tctl lock --access-request ${requestId}`}

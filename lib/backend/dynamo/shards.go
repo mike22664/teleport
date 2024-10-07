@@ -24,11 +24,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodbstreams/attributevalue"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
-	streamtypes "github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -37,9 +36,9 @@ import (
 )
 
 type shardEvent struct {
-	err     error
-	shardID string
 	events  []backend.Event
+	shardID string
+	err     error
 }
 
 func (b *Backend) asyncPollStreams(ctx context.Context) error {
@@ -82,19 +81,19 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	b.Debugf("Found latest event stream %v.", aws.ToString(streamArn))
+	b.Debugf("Found latest event stream %v.", aws.StringValue(streamArn))
 
 	set := make(map[string]struct{})
 	eventsC := make(chan shardEvent)
 
-	shouldStartPoll := func(shard streamtypes.Shard) bool {
-		sid := aws.ToString(shard.ShardId)
+	shouldStartPoll := func(shard *dynamodbstreams.Shard) bool {
+		sid := aws.StringValue(shard.ShardId)
 		if _, ok := set[sid]; ok {
 			// already being polled
 			return false
 		}
-		if _, ok := set[aws.ToString(shard.ParentShardId)]; ok {
-			b.Tracef("Skipping child shard: %s, still polling parent %s", sid, aws.ToString(shard.ParentShardId))
+		if _, ok := set[aws.StringValue(shard.ParentShardId)]; ok {
+			b.Tracef("Skipping child shard: %s, still polling parent %s", sid, aws.StringValue(shard.ParentShardId))
 			// still processing parent
 			return false
 		}
@@ -119,7 +118,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 			if !shouldStartPoll(shards[i]) {
 				continue
 			}
-			shardID := aws.ToString(shards[i].ShardId)
+			shardID := aws.StringValue(shards[i].ShardId)
 			b.Tracef("Adding active shard %v.", shardID)
 			set[shardID] = struct{}{}
 			go b.asyncPollShard(ctx, streamArn, shards[i], eventsC, initC)
@@ -185,7 +184,7 @@ func (b *Backend) pollStreams(externalCtx context.Context) error {
 }
 
 func (b *Backend) findStream(ctx context.Context) (*string, error) {
-	status, err := b.svc.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+	status, err := b.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
 		TableName: aws.String(b.TableName),
 	})
 	if err != nil {
@@ -197,10 +196,10 @@ func (b *Backend) findStream(ctx context.Context) (*string, error) {
 	return status.Table.LatestStreamArn, nil
 }
 
-func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard streamtypes.Shard, eventsC chan shardEvent, initC chan<- error) error {
-	shardIterator, err := b.streams.GetShardIterator(ctx, &dynamodbstreams.GetShardIteratorInput{
+func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent, initC chan<- error) error {
+	shardIterator, err := b.streams.GetShardIteratorWithContext(ctx, &dynamodbstreams.GetShardIteratorInput{
 		ShardId:           shard.ShardId,
-		ShardIteratorType: streamtypes.ShardIteratorTypeLatest,
+		ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeLatest),
 		StreamArn:         streamArn,
 	})
 
@@ -218,13 +217,13 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 	ticker := time.NewTicker(b.PollStreamPeriod)
 	defer ticker.Stop()
 	iterator := shardIterator.ShardIterator
-	shardID := aws.ToString(shard.ShardId)
+	shardID := aws.StringValue(shard.ShardId)
 	for {
 		select {
 		case <-ctx.Done():
 			return trace.ConnectionProblem(ctx.Err(), "context is closing")
 		case <-ticker.C:
-			out, err := b.streams.GetRecords(ctx, &dynamodbstreams.GetRecordsInput{
+			out, err := b.streams.GetRecordsWithContext(ctx, &dynamodbstreams.GetRecordsInput{
 				ShardIterator: iterator,
 			})
 			if err != nil {
@@ -235,14 +234,14 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 			}
 			if len(out.Records) == 0 {
 				if out.NextShardIterator == nil {
-					b.Tracef("Shard is closed: %v.", aws.ToString(shard.ShardId))
+					b.Tracef("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 					return io.EOF
 				}
 				iterator = out.NextShardIterator
 				continue
 			}
 			if out.NextShardIterator == nil {
-				b.Tracef("Shard is closed: %v.", aws.ToString(shard.ShardId))
+				b.Tracef("Shard is closed: %v.", aws.StringValue(shard.ShardId))
 				return io.EOF
 			}
 			events := make([]backend.Event, 0, len(out.Records))
@@ -264,14 +263,14 @@ func (b *Backend) pollShard(ctx context.Context, streamArn *string, shard stream
 }
 
 // collectActiveShards collects shards
-func (b *Backend) collectActiveShards(ctx context.Context, streamArn *string) ([]streamtypes.Shard, error) {
-	var out []streamtypes.Shard
+func (b *Backend) collectActiveShards(ctx context.Context, streamArn *string) ([]*dynamodbstreams.Shard, error) {
+	var out []*dynamodbstreams.Shard
 
 	input := &dynamodbstreams.DescribeStreamInput{
 		StreamArn: streamArn,
 	}
 	for {
-		streamInfo, err := b.streams.DescribeStream(ctx, input)
+		streamInfo, err := b.streams.DescribeStreamWithContext(ctx, input)
 		if err != nil {
 			return nil, convertError(err)
 		}
@@ -283,8 +282,8 @@ func (b *Backend) collectActiveShards(ctx context.Context, streamArn *string) ([
 	}
 }
 
-func filterActiveShards(shards []streamtypes.Shard) []streamtypes.Shard {
-	var active []streamtypes.Shard
+func filterActiveShards(shards []*dynamodbstreams.Shard) []*dynamodbstreams.Shard {
+	var active []*dynamodbstreams.Shard
 	for i := range shards {
 		if shards[i].SequenceNumberRange.EndingSequenceNumber == nil {
 			active = append(active, shards[i])
@@ -293,18 +292,18 @@ func filterActiveShards(shards []streamtypes.Shard) []streamtypes.Shard {
 	return active
 }
 
-func toOpType(rec streamtypes.Record) (types.OpType, error) {
-	switch rec.EventName {
-	case streamtypes.OperationTypeInsert, streamtypes.OperationTypeModify:
+func toOpType(rec *dynamodbstreams.Record) (types.OpType, error) {
+	switch aws.StringValue(rec.EventName) {
+	case dynamodbstreams.OperationTypeInsert, dynamodbstreams.OperationTypeModify:
 		return types.OpPut, nil
-	case streamtypes.OperationTypeRemove:
+	case dynamodbstreams.OperationTypeRemove:
 		return types.OpDelete, nil
 	default:
-		return -1, trace.BadParameter("unsupported DynamodDB operation: %v", rec.EventName)
+		return -1, trace.BadParameter("unsupported DynamodDB operation: %v", aws.StringValue(rec.EventName))
 	}
 }
 
-func toEvent(rec streamtypes.Record) (*backend.Event, error) {
+func toEvent(rec *dynamodbstreams.Record) (*backend.Event, error) {
 	op, err := toOpType(rec)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -312,7 +311,7 @@ func toEvent(rec streamtypes.Record) (*backend.Event, error) {
 	switch op {
 	case types.OpPut:
 		var r record
-		if err := attributevalue.UnmarshalMap(rec.Dynamodb.NewImage, &r); err != nil {
+		if err := dynamodbattribute.UnmarshalMap(rec.Dynamodb.NewImage, &r); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		var expires time.Time
@@ -330,7 +329,7 @@ func toEvent(rec streamtypes.Record) (*backend.Event, error) {
 		}, nil
 	case types.OpDelete:
 		var r record
-		if err := attributevalue.UnmarshalMap(rec.Dynamodb.Keys, &r); err != nil {
+		if err := dynamodbattribute.UnmarshalMap(rec.Dynamodb.Keys, &r); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &backend.Event{
@@ -344,9 +343,9 @@ func toEvent(rec streamtypes.Record) (*backend.Event, error) {
 	}
 }
 
-func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard streamtypes.Shard, eventsC chan shardEvent, initC chan<- error) {
+func (b *Backend) asyncPollShard(ctx context.Context, streamArn *string, shard *dynamodbstreams.Shard, eventsC chan shardEvent, initC chan<- error) {
 	var err error
-	shardID := aws.ToString(shard.ShardId)
+	shardID := aws.StringValue(shard.ShardId)
 	defer func() {
 		if err == nil {
 			err = trace.BadParameter("shard %q exited unexpectedly", shardID)

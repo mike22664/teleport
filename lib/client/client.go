@@ -47,7 +47,6 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -118,9 +117,10 @@ type ReissueParams struct {
 	KubernetesCluster string
 	AccessRequests    []string
 	// See [proto.UserCertsRequest.DropAccessRequests].
-	DropAccessRequests []string
-	RouteToDatabase    proto.RouteToDatabase
-	RouteToApp         proto.RouteToApp
+	DropAccessRequests    []string
+	RouteToDatabase       proto.RouteToDatabase
+	RouteToApp            proto.RouteToApp
+	RouteToWindowsDesktop proto.RouteToWindowsDesktop
 
 	// ExistingCreds is a gross hack for lib/web/terminal.go to pass in
 	// existing user credentials. The TeleportClient in lib/web/terminal.go
@@ -130,7 +130,7 @@ type ReissueParams struct {
 	//
 	// TODO(awly): refactor lib/web to use a Keystore implementation that
 	// mimics LocalKeystore and remove this.
-	ExistingCreds *KeyRing
+	ExistingCreds *Key
 
 	// MFACheck is optional parameter passed if MFA check was already done.
 	// It can be nil.
@@ -164,6 +164,8 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 		// App means a request for a TLS certificate for access to a specific
 		// web app, as specified by RouteToApp.
 		return proto.UserCertsRequest_App
+	case p.RouteToWindowsDesktop.WindowsDesktop != "":
+		return proto.UserCertsRequest_WindowsDesktop
 	default:
 		// All means a request for both SSH and TLS certificates for the
 		// overall user session. These certificates are not specific to any SSH
@@ -172,7 +174,7 @@ func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
 	}
 }
 
-func (p ReissueParams) isMFARequiredRequest(sshLogin string) (*proto.IsMFARequiredRequest, error) {
+func (p ReissueParams) isMFARequiredRequest(sshLogin string) *proto.IsMFARequiredRequest {
 	req := new(proto.IsMFARequiredRequest)
 	switch {
 	case p.NodeName != "":
@@ -181,12 +183,12 @@ func (p ReissueParams) isMFARequiredRequest(sshLogin string) (*proto.IsMFARequir
 		req.Target = &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: p.KubernetesCluster}
 	case p.RouteToDatabase.ServiceName != "":
 		req.Target = &proto.IsMFARequiredRequest_Database{Database: &p.RouteToDatabase}
+	case p.RouteToWindowsDesktop.WindowsDesktop != "":
+		req.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &p.RouteToWindowsDesktop}
 	case p.RouteToApp.Name != "":
 		req.Target = &proto.IsMFARequiredRequest_App{App: &p.RouteToApp}
-	default:
-		return nil, trace.BadParameter("reissue params have no valid MFA target")
 	}
-	return req, nil
+	return req
 }
 
 // CertCachePolicy describes what should happen to the certificate cache when a
@@ -208,16 +210,16 @@ const (
 // makeDatabaseClientPEM returns appropriate client PEM file contents for the
 // specified database type. Some databases only need certificate in the PEM
 // file, others both certificate and key.
-func makeDatabaseClientPEM(proto string, cert []byte, pk *keys.PrivateKey) ([]byte, error) {
+func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
 	// MongoDB expects certificate and key pair in the same pem file.
 	if proto == defaults.ProtocolMongoDB {
-		keyPEM, err := pk.SoftwarePrivateKeyPEM()
+		rsaKeyPEM, err := pk.PrivateKey.RSAPrivateKeyPEM()
 		if err == nil {
-			return append(cert, keyPEM...), nil
+			return append(cert, rsaKeyPEM...), nil
 		} else if !trace.IsBadParameter(err) {
 			return nil, trace.Wrap(err)
 		}
-		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a hardware private key.")
+		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a non-rsa private key.")
 	}
 	return cert, nil
 }

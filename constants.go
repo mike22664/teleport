@@ -199,6 +199,9 @@ const (
 	// ComponentSession is an active session.
 	ComponentSession = "session"
 
+	// ComponentHostUsers represents host user management.
+	ComponentHostUsers = "hostusers"
+
 	// ComponentDynamoDB represents dynamodb clients
 	ComponentDynamoDB = "dynamodb"
 
@@ -303,7 +306,7 @@ const (
 	DataDirParameterName = "data_dir"
 
 	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
-	// a server keep pinging each other with it.
+	// a server keep pining each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
 	// ClusterDetailsReqType is the name of a global request which returns cluster details like
@@ -839,10 +842,13 @@ const (
 	// command execution (exec and shells).
 	ExecSubCommand = "exec"
 
-	// NetworkingSubCommand is the sub-command Teleport uses to re-exec itself
-	// for networking operations. e.g. local/remote port forwarding, agent forwarding,
-	// or x11 forwarding.
-	NetworkingSubCommand = "networking"
+	// LocalForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for local port forwarding.
+	LocalForwardSubCommand = "forwardv2"
+
+	// RemoteForwardSubCommand is the sub-command Teleport uses to re-exec itself
+	// for remote port forwarding.
+	RemoteForwardSubCommand = "remoteforward"
 
 	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
 	// to check if the user's home directory exists.

@@ -50,7 +50,7 @@ type GenerateDatabaseCertificatesRequest struct {
 	OutputLocation     string
 	IdentityFileWriter identityfile.ConfigWriter
 	TTL                time.Duration
-	KeyRing            *client.KeyRing
+	Key                *client.Key
 	// Password is used to generate JKS keystore used for cassandra format or Oracle wallet.
 	Password string
 }
@@ -93,16 +93,15 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 		subject.Organization = []string{clusterName}
 	}
 
-	if req.KeyRing == nil {
-		// TODO(nklaassen): don't hardcode RSA here.
-		keyRing, err := client.GenerateRSAKeyRing()
+	if req.Key == nil {
+		key, err := client.GenerateRSAKey()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		req.KeyRing = keyRing
+		req.Key = key
 	}
 
-	csr, err := tlsca.GenerateCertificateRequestPEM(subject, req.KeyRing.TLSPrivateKey)
+	csr, err := tlsca.GenerateCertificateRequestPEM(subject, req.Key.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -142,14 +141,14 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 		}
 	}
 
-	req.KeyRing.TLSCert = resp.Cert
-	req.KeyRing.TrustedCerts = []authclient.TrustedCerts{{
-		ClusterName:     req.KeyRing.ClusterName,
+	req.Key.TLSCert = resp.Cert
+	req.Key.TrustedCerts = []authclient.TrustedCerts{{
+		ClusterName:     req.Key.ClusterName,
 		TLSCertificates: resp.CACerts,
 	}}
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           req.OutputLocation,
-		KeyRing:              req.KeyRing,
+		Key:                  req.Key,
 		Format:               req.OutputFormat,
 		OverwriteDestination: req.OutputCanOverwrite,
 		Writer:               req.IdentityFileWriter,

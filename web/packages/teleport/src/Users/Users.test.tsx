@@ -108,10 +108,10 @@ describe('invite collaborators integration', () => {
 });
 
 test('Users not equal to MAU Notice', async () => {
+  const user = userEvent.setup();
   const ctx = createTeleportContext();
-  let props: State;
 
-  props = {
+  const props: State = {
     attempt: {
       message: 'success',
       isSuccess: true,
@@ -119,8 +119,12 @@ test('Users not equal to MAU Notice', async () => {
       isFailed: false,
     },
     users: [],
-    fetchRoles: async () => [],
-    operation: { type: 'invite-collaborators' },
+    fetchRoles: () => Promise.resolve([]),
+    operation: {
+      type: 'reset',
+      user: { name: 'alice@example.com', roles: ['foo'] },
+    },
+
     onStartCreate: () => undefined,
     onStartDelete: () => undefined,
     onStartEdit: () => undefined,
@@ -140,9 +144,7 @@ test('Users not equal to MAU Notice', async () => {
     onDismissUsersMauNotice: jest.fn(),
   };
 
-  const user = userEvent.setup();
-
-  render(
+  const { rerender } = render(
     <MemoryRouter>
       <ContextProvider ctx={ctx}>
         <Users {...props} />
@@ -151,8 +153,19 @@ test('Users not equal to MAU Notice', async () => {
   );
 
   expect(screen.getByTestId('users-not-mau-alert')).toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+  await user.click(screen.getByTestId('dismiss-users-not-mau-alert'));
   expect(props.onDismissUsersMauNotice).toHaveBeenCalled();
+
+  const newProps = { ...props, showMauInfo: false };
+
+  rerender(
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>
+        <Users {...newProps} />
+      </ContextProvider>
+    </MemoryRouter>
+  );
+
   expect(screen.queryByTestId('users-not-mau-alert')).not.toBeInTheDocument();
 });
 

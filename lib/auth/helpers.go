@@ -43,16 +43,15 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -389,9 +388,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if authPreference.GetSignatureAlgorithmSuite() == types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED {
-		authPreference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
-	}
 	_, err = srv.AuthServer.UpsertAuthPreference(ctx, authPreference)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -559,7 +555,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 		user:          userState,
 		ttl:           ttl,
 		compatibility: compatibility,
-		sshPublicKey:  key,
+		publicKey:     key,
 		checker:       checker,
 		traits:        userState.GetTraits(),
 	})
@@ -588,27 +584,15 @@ func PrivateKeyToPublicKeyTLS(privateKey []byte) (tlsPublicKey []byte, err error
 // returns private public key pair
 func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
 	ctx := context.TODO()
-
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	tlsPublicKey, err := PrivateKeyToPublicKeyTLS(priv)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	tlsPublicKeyPEM, err := keys.MarshalPublicKey(key.Public())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	sshPublicKey, err := ssh.NewPublicKey(key.Public())
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	sshPublicKeyPEM := ssh.MarshalAuthorizedKey(sshPublicKey)
 
 	clusterName, err := authServer.GetClusterName()
 	if err != nil {
@@ -635,7 +619,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		}
 
 		certs, err := authServer.generateUserCert(ctx, certRequest{
-			tlsPublicKey:     tlsPublicKeyPEM,
+			publicKey:        pub,
 			user:             userState,
 			ttl:              identity.TTL,
 			usage:            identity.AcceptedUsage,
@@ -649,34 +633,34 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return certs.TLS, privateKeyPEM, nil
+		return certs.TLS, priv, nil
 	case authz.BuiltinRole:
 		certs, err := authServer.GenerateHostCerts(ctx,
 			&proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
-				PublicTLSKey: tlsPublicKeyPEM,
-				PublicSSHKey: sshPublicKeyPEM,
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: pub,
 				SystemRoles:  id.AdditionalSystemRoles,
 			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return certs.TLS, privateKeyPEM, nil
+		return certs.TLS, priv, nil
 	case authz.RemoteBuiltinRole:
 		certs, err := authServer.GenerateHostCerts(ctx,
 			&proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
-				PublicTLSKey: tlsPublicKeyPEM,
-				PublicSSHKey: sshPublicKeyPEM,
+				PublicTLSKey: tlsPublicKey,
+				PublicSSHKey: pub,
 			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return certs.TLS, privateKeyPEM, nil
+		return certs.TLS, priv, nil
 	default:
 		return nil, nil, trace.BadParameter("identity of unknown type %T is unsupported", identity)
 	}
@@ -901,7 +885,6 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	tlsConfig.Time = cfg.AuthServer.Clock().Now
-	tlsCert := tlsConfig.Certificates[0]
 
 	srv.Listener, err = net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -909,13 +892,12 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	}
 
 	srv.TLSServer, err = NewTLSServer(context.Background(), TLSServerConfig{
-		Listener:             srv.Listener,
-		AccessPoint:          srv.AuthServer.AuthServer.Cache,
-		TLS:                  tlsConfig,
-		GetClientCertificate: func() (*tls.Certificate, error) { return &tlsCert, nil },
-		APIConfig:            *srv.APIConfig,
-		LimiterConfig:        *srv.Limiter,
-		AcceptedUsage:        cfg.AcceptedUsage,
+		Listener:      srv.Listener,
+		AccessPoint:   srv.AuthServer.AuthServer.Cache,
+		TLS:           tlsConfig,
+		APIConfig:     *srv.APIConfig,
+		LimiterConfig: *srv.Limiter,
+		AcceptedUsage: cfg.AcceptedUsage,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1028,7 +1010,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess types.WebSession) (*authcli
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCert, err := tls.X509KeyPair(sess.GetTLSCert(), sess.GetTLSPriv())
+	tlsCert, err := tls.X509KeyPair(sess.GetTLSCert(), sess.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
@@ -1208,22 +1190,12 @@ func (s FakeTeleportVersion) WriteTeleportVersion(_ context.Context, _ *semver.V
 
 // NewServerIdentity generates new server identity, used in tests
 func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*state.Identity, error) {
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	priv, pub, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshPubKey, err := ssh.NewPublicKey(key.Public())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsPubKey, err := keys.MarshalPublicKey(key.Public())
+	publicTLS, err := PrivateKeyToPublicKeyTLS(priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1233,14 +1205,14 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*stat
 			HostID:       hostID,
 			NodeName:     hostID,
 			Role:         role,
-			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
-			PublicTLSKey: tlsPubKey,
+			PublicTLSKey: publicTLS,
+			PublicSSHKey: pub,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return state.ReadIdentityFromKeyPair(privateKeyPEM, certs)
+	return state.ReadIdentityFromKeyPair(priv, certs)
 }
 
 // clt limits required interface to the necessary methods
@@ -1348,38 +1320,11 @@ func CreateUser(ctx context.Context, clt clt, username string, roles ...types.Ro
 	return created, trace.Wrap(err)
 }
 
-// createUserAndRoleOptions is a set of options for CreateUserAndRole
-type createUserAndRoleOptions struct {
-	mutateUser []func(user types.User)
-	mutateRole []func(role types.Role)
-}
-
-// CreateUserAndRoleOption is a functional option for CreateUserAndRole
-type CreateUserAndRoleOption func(*createUserAndRoleOptions)
-
-// WithUserMutator sets a function that will be called to mutate the user before it is created
-func WithUserMutator(mutate ...func(user types.User)) CreateUserAndRoleOption {
-	return func(o *createUserAndRoleOptions) {
-		o.mutateUser = append(o.mutateUser, mutate...)
-	}
-}
-
-// WithRoleMutator sets a function that will be called to mutate the role before it is created
-func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
-	return func(o *createUserAndRoleOptions) {
-		o.mutateRole = append(o.mutateRole, mutate...)
-	}
-}
-
 // CreateUserAndRole creates user and role and assigns role to a user, used in tests
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.
-func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule, opts ...CreateUserAndRoleOption) (types.User, types.Role, error) {
-	o := createUserAndRoleOptions{}
-	for _, opt := range opts {
-		opt(&o)
-	}
+func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule) (types.User, types.Role, error) {
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
 	if err != nil {
@@ -1391,18 +1336,13 @@ func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRu
 	if allowRules != nil {
 		role.SetRules(types.Allow, allowRules)
 	}
-	for _, mutate := range o.mutateRole {
-		mutate(role)
-	}
+
 	upsertedRole, err := clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	user.AddRole(upsertedRole.GetName())
-	for _, mutate := range o.mutateUser {
-		mutate(user)
-	}
 	created, err := clt.UpsertUser(ctx, user)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

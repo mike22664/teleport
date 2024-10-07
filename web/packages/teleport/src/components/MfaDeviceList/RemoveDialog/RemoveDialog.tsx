@@ -17,11 +17,10 @@
  */
 
 import React from 'react';
-import { ButtonSecondary, ButtonWarning, P1, Text } from 'design';
+import { ButtonSecondary, ButtonWarning, Text } from 'design';
 import { Danger } from 'design/Alert';
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import { H2 } from 'design';
 
 export default function RemoveDialog(props: Props) {
   const { name, onClose, onRemove } = props;
@@ -35,17 +34,19 @@ export default function RemoveDialog(props: Props) {
   return (
     <Dialog disableEscapeKeyDown={false} onClose={onClose} open={true}>
       <DialogContent width="400px">
-        <H2 mb={4}>Remove Device</H2>
+        <Text typography="h2" mb={2}>
+          Remove Device
+        </Text>
         {attempt.status == 'failed' && (
           <Danger mb={2}>{attempt.statusText}</Danger>
         )}
-        <P1>
+        <Text typography="paragraph" mb="6">
           Are you sure you want to remove device{' '}
           <Text as="span" bold color="text.main">
             {name}
           </Text>{' '}
           ?
-        </P1>
+        </Text>
       </DialogContent>
       <DialogFooter>
         <ButtonWarning

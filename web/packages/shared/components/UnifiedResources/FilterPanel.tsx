@@ -22,7 +22,7 @@ import { ButtonBorder, ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { SortDir } from 'design/DataTable/types';
 import { Text, Flex, Toggle } from 'design';
 import Menu, { MenuItem } from 'design/Menu';
-import { CheckboxInput } from 'design/Checkbox';
+import { StyledCheckbox } from 'design/Checkbox';
 import {
   ArrowUp,
   ArrowDown,
@@ -126,7 +126,7 @@ export function FilterPanel({
     >
       <Flex gap={2}>
         <HoverTooltip tipContent={selected ? 'Deselect all' : 'Select all'}>
-          <CheckboxInput
+          <StyledCheckbox
             css={`
               // add extra margin so it aligns with the checkboxes of the resources
               margin-left: 19px;
@@ -282,7 +282,15 @@ const FilterTypesMenu = ({
   return (
     <Flex textAlign="center" alignItems="center">
       <HoverTooltip tipContent={'Filter by resource type'}>
-        <ButtonSecondary size="small" onClick={handleOpen}>
+        <ButtonSecondary
+          px={2}
+          css={`
+            border-color: ${props => props.theme.colors.spotBackground[0]};
+          `}
+          textTransform="none"
+          size="small"
+          onClick={handleOpen}
+        >
           Types{' '}
           {kindsFromParams.length > 0 ? `(${kindsFromParams.length})` : ''}
           <ChevronDown ml={2} size="small" color="text.slightlyMuted" />
@@ -330,7 +338,7 @@ const FilterTypesMenu = ({
         {kindOptions.map(kind => {
           const $checkbox = (
             <>
-              <CheckboxInput
+              <StyledCheckbox
                 type="checkbox"
                 name={kind.label}
                 disabled={kind.disabled}
@@ -393,7 +401,7 @@ type SortMenuProps = {
   sortType: string;
   sortDir: SortDir;
   onChange: (value: string) => void;
-  onDirChange: () => void;
+  onDirChange: (dir: SortDir) => void;
 };
 
 const SortMenu: React.FC<SortMenuProps> = props => {
@@ -453,6 +461,7 @@ const SortMenu: React.FC<SortMenuProps> = props => {
           onClick={onDirChange}
           textTransform="none"
           css={`
+            width: 0px; // remove extra width around the button icon
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
             border-color: ${props => props.theme.colors.spotBackground[2]};
@@ -607,7 +616,7 @@ const ViewModeSwitchContainer = styled.div`
   .selected {
     background-color: ${props => props.theme.colors.spotBackground[1]};
 
-    &:hover {
+    :hover {
       background-color: ${props => props.theme.colors.spotBackground[1]};
     }
   }
@@ -625,7 +634,7 @@ const ViewModeSwitchButton = styled.button`
 
   background-color: transparent;
 
-  &:hover {
+  :hover {
     background-color: ${props => props.theme.colors.spotBackground[0]};
   }
 `;

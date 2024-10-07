@@ -19,7 +19,7 @@
 import React, { useState } from 'react';
 
 import Flex from 'design/Flex';
-import { Text, H1 } from 'design';
+import Text from 'design/Text';
 
 import { Navigation } from 'teleport/components/Wizard/Navigation';
 
@@ -75,9 +75,9 @@ export function GuidedFlow({ name, title, views, icon }: FlowProps) {
           views={views.map(v => ({ title: v.name }))}
         />
       </Flex>
-      <H1 mt="4" mb="3">
+      <Text as="h2" fontSize="24px" mt="4" mb="3">
         {title}
-      </H1>
+      </Text>
       <Component nextStep={handleNextStep} prevStep={handlePrevStep} />
     </>
   );

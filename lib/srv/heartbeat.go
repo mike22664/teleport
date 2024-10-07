@@ -38,6 +38,7 @@ import (
 type HeartbeatI interface {
 	Run() error
 	Close() error
+	ForceSend(timeout time.Duration) error
 }
 
 // KeepAliveState represents state of the heartbeat
@@ -627,4 +628,21 @@ func (h *Heartbeat) fetchAndAnnounce() error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// ForceSend forces send cycle, used in tests, returns
+// nil in case of success, error otherwise
+func (h *Heartbeat) ForceSend(timeout time.Duration) error {
+	timeoutC := time.After(timeout)
+	select {
+	case h.sendC <- struct{}{}:
+	case <-timeoutC:
+		return trace.ConnectionProblem(nil, "timeout waiting for send")
+	}
+	select {
+	case <-h.announceC:
+		return nil
+	case <-timeoutC:
+		return trace.ConnectionProblem(nil, "timeout waiting for announce to be sent")
+	}
 }

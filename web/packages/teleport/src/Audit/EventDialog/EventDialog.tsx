@@ -47,7 +47,9 @@ function EventDialog(props: EventDialogProps) {
       open={true}
     >
       <DialogHeader>
-        <DialogTitle>{title}</DialogTitle>
+        <DialogTitle typography="body1" caps={true} bold>
+          {title}
+        </DialogTitle>
       </DialogHeader>
       <DialogContent>
         <TextEditor readOnly={true} data={[{ content: json, type: 'json' }]} />

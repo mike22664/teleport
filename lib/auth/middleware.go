@@ -79,10 +79,8 @@ type AccessCacheWithEvents interface {
 type TLSServerConfig struct {
 	// Listener is a listener to bind to
 	Listener net.Listener
-	// TLS is the server TLS configuration.
+	// TLS is a base TLS configuration
 	TLS *tls.Config
-	// GetClientCertificate returns auth client credentials.
-	GetClientCertificate func() (*tls.Certificate, error)
 	// API is API server configuration
 	APIConfig
 	// LimiterConfig is limiter config
@@ -111,8 +109,15 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")
 	}
-	if c.GetClientCertificate == nil {
-		return trace.BadParameter("missing parameter GetClientCertificate")
+	c.TLS.ClientAuth = tls.VerifyClientCertIfGiven
+	if c.TLS.ClientCAs == nil {
+		return trace.BadParameter("missing parameter TLS.ClientCAs")
+	}
+	if c.TLS.RootCAs == nil {
+		return trace.BadParameter("missing parameter TLS.RootCAs")
+	}
+	if len(c.TLS.Certificates) == 0 {
+		return trace.BadParameter("missing parameter TLS.Certificates")
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
@@ -200,6 +205,9 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	authMiddleware.Wrap(apiServer)
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
+	// force client auth if given
+	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
+	cfg.TLS.NextProtos = []string{http2.NextProtoTLS}
 
 	securityHeaderHandler := httplib.MakeSecurityHeaderHandler(limiter)
 	tracingHandler := httplib.MakeTracingHandler(securityHeaderHandler, teleport.ComponentAuth)
@@ -221,13 +229,8 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		}),
 	}
 
-	tlsConfig := cfg.TLS.Clone()
-	// force client auth if given
-	tlsConfig.ClientAuth = tls.VerifyClientCertIfGiven
-	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
-
 	server.clientTLSConfigGenerator, err = NewClientTLSConfigGenerator(ClientTLSConfigGeneratorConfig{
-		TLS:                  tlsConfig,
+		TLS:                  server.cfg.TLS.Clone(),
 		ClusterName:          localClusterName.GetClusterName(),
 		PermitRemoteClusters: true,
 		AccessPoint:          server.cfg.AccessPoint,
@@ -236,10 +239,10 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig.GetConfigForClient = server.clientTLSConfigGenerator.GetConfigForClient
+	server.cfg.TLS.GetConfigForClient = server.clientTLSConfigGenerator.GetConfigForClient
 
 	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
-		TLS:                tlsConfig,
+		TLS:                server.cfg.TLS,
 		Middleware:         authMiddleware,
 		APIConfig:          cfg.APIConfig,
 		UnaryInterceptors:  authMiddleware.UnaryInterceptors(),
@@ -250,7 +253,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	}
 
 	server.mux, err = multiplexer.NewTLSListener(multiplexer.TLSListenerConfig{
-		Listener: tls.NewListener(cfg.Listener, tlsConfig),
+		Listener: tls.NewListener(cfg.Listener, server.cfg.TLS),
 		ID:       cfg.ID,
 	})
 	if err != nil {
@@ -258,7 +261,7 @@ func NewTLSServer(ctx context.Context, cfg TLSServerConfig) (*TLSServer, error) 
 	}
 
 	if cfg.PluginRegistry != nil {
-		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer, cfg.GetClientCertificate); err != nil {
+		if err := cfg.PluginRegistry.RegisterAuthServices(ctx, server.grpcServer); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

@@ -301,7 +301,7 @@ export function NavigationItem(props: NavigationItemProps) {
   );
 }
 
-const AttentionDot = styled.div.attrs<{ 'data-testid'?: string }>(() => ({
+const AttentionDot = styled.div.attrs(() => ({
   'data-testid': 'nav-item-attention-dot',
 }))`
   margin-left: 15px;

@@ -18,7 +18,8 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { http, HttpResponse, delay } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import { rest } from 'msw';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -33,6 +34,7 @@ import { TestConnection } from './TestConnection';
 
 export default {
   title: 'Teleport/Discover/ConnectMyComputer/TestConnection',
+  loaders: [mswLoader],
   parameters: {
     msw: {
       // All handlers within the story must be specified as keys in order to use Storybook's
@@ -41,33 +43,37 @@ export default {
       // https://github.com/mswjs/msw-storybook-addon/tree/v1.10.0#composing-request-handlers
       // https://storybook.js.org/docs/6.5/writing-stories/parameters#rules-of-parameter-inheritance
       handlers: {
-        renewToken: http.post(cfg.api.webRenewTokenPath, () =>
-          HttpResponse.json({})
+        renewToken: rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
+          res(ctx.json({}))
         ),
         mfaRequired: [
-          http.post(cfg.getMfaRequiredUrl(), () =>
-            HttpResponse.json({ required: false })
+          rest.post(cfg.getMfaRequiredUrl(), (req, res, ctx) =>
+            res(ctx.json({ required: false }))
           ),
         ],
         connectionDiagnostic: [
-          http.post(cfg.getConnectionDiagnosticUrl(), () =>
-            HttpResponse.json({
-              id: '1234',
-              success: true,
-              traces: [
-                {
-                  traceType: 'rbac node',
-                  status: 'success',
-                  details: 'Everything is a-okay.',
-                },
-              ],
-            })
+          rest.post(cfg.getConnectionDiagnosticUrl(), (req, res, ctx) =>
+            res(
+              ctx.json({
+                id: '1234',
+                success: true,
+                traces: [
+                  {
+                    traceType: 'rbac node',
+                    status: 'success',
+                    details: 'Everything is a-okay.',
+                  },
+                ],
+              })
+            )
           ),
         ],
       },
     },
   },
 };
+
+initialize();
 
 const node = { ...nodes[0] };
 node.sshLogins = [
@@ -90,8 +96,8 @@ SingleLogin.parameters = {
   msw: {
     handlers: {
       connectMyComputerLogins: [
-        http.get(cfg.api.connectMyComputerLoginsPath, () =>
-          HttpResponse.json({ logins: ['foo'] })
+        rest.get(cfg.api.connectMyComputerLoginsPath, (req, res, ctx) =>
+          res(ctx.json({ logins: ['foo'] }))
         ),
       ],
     },
@@ -110,15 +116,17 @@ MultipleLogins.parameters = {
   msw: {
     handlers: {
       connectMyComputerLogins: [
-        http.get(cfg.api.connectMyComputerLoginsPath, () =>
-          HttpResponse.json({
-            logins: [
-              'foo',
-              'bar',
-              'baz',
-              'czesława_maria_de_domo_cieślak_primo_voto_gospodarek_secundo_voto_kowalczyk',
-            ],
-          })
+        rest.get(cfg.api.connectMyComputerLoginsPath, (req, res, ctx) =>
+          res(
+            ctx.json({
+              logins: [
+                'foo',
+                'bar',
+                'baz',
+                'czesława_maria_de_domo_cieślak_primo_voto_gospodarek_secundo_voto_kowalczyk',
+              ],
+            })
+          )
         ),
       ],
     },
@@ -137,8 +145,8 @@ NoLogins.parameters = {
   msw: {
     handlers: {
       connectMyComputerLogins: [
-        http.get(cfg.api.connectMyComputerLoginsPath, () =>
-          HttpResponse.json({ logins: [] })
+        rest.get(cfg.api.connectMyComputerLoginsPath, (req, res, ctx) =>
+          res(ctx.json({ logins: [] }))
         ),
       ],
     },
@@ -157,12 +165,10 @@ NoRole.parameters = {
   msw: {
     handlers: {
       connectMyComputerLogins: [
-        http.get(cfg.api.connectMyComputerLoginsPath, () =>
-          HttpResponse.json(
-            {
-              error: { message: 'No role found' },
-            },
-            { status: 404 }
+        rest.get(cfg.api.connectMyComputerLoginsPath, (req, res, ctx) =>
+          res(
+            ctx.status(404),
+            ctx.json({ error: { message: 'No role found' } })
           )
         ),
       ],
@@ -182,9 +188,8 @@ ReloadUserProcessing.parameters = {
   msw: {
     handlers: {
       renewToken: [
-        http.post(
-          cfg.api.webRenewTokenPath,
-          async () => await delay('infinite')
+        rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
+          res(ctx.delay('infinite'))
         ),
       ],
     },
@@ -205,26 +210,19 @@ ReloadUserError.parameters = {
       // The first handler returns an error immediately. Subsequent requests return after a delay so
       // that we can show a spinner after clicking on "Retry".
       renewToken: [
-        http.post(
-          cfg.api.webRenewTokenPath,
-          () =>
-            HttpResponse.json(
-              {
-                message: 'Could not renew session',
-              },
-              { status: 500 }
-            ),
-          { once: true }
+        rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
+          res.once(
+            ctx.status(500),
+            ctx.json({ message: 'Could not renew session' })
+          )
         ),
-        http.post(cfg.api.webRenewTokenPath, async () => {
-          await delay(1000);
-          return HttpResponse.json(
-            {
-              message: 'Could not renew session',
-            },
-            { status: 500 }
-          );
-        }),
+        rest.post(cfg.api.webRenewTokenPath, (req, res, ctx) =>
+          res(
+            ctx.delay(1000),
+            ctx.status(500),
+            ctx.json({ error: { message: 'Could not renew session' } })
+          )
+        ),
       ],
     },
   },

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -208,6 +209,7 @@ func checkJWTKeys(cai types.CertAuthority) error {
 			return trace.Wrap(err)
 		}
 		cfg := &jwt.Config{
+			Algorithm:   defaults.ApplicationTokenAlgorithm,
 			ClusterName: ca.GetClusterName(),
 			PrivateKey:  privateKey,
 			PublicKey:   publicKey,
@@ -255,6 +257,7 @@ func checkSAMLIDPCA(cai types.CertAuthority) error {
 func GetJWTSigner(signer crypto.Signer, clusterName string, clock clockwork.Clock) (*jwt.Key, error) {
 	key, err := jwt.New(&jwt.Config{
 		Clock:       clock,
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: clusterName,
 		PrivateKey:  signer,
 	})

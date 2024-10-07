@@ -192,7 +192,7 @@ const Layout = styled(Box)`
   flex: 1;
   max-width: 1248px;
 
-  &::after {
+  ::after {
     content: ' ';
     padding-bottom: 24px;
   }
@@ -250,7 +250,6 @@ function toResourceMap(request: PendingAccessRequest): ResourceMap {
     node: {},
     db: {},
     app: {},
-    saml_idp_service_provider: {},
   };
   if (request.kind === 'role') {
     request.roles.forEach(role => {

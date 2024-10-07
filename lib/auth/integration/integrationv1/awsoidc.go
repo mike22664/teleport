@@ -488,6 +488,11 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
+	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.cache.UpsertToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -500,7 +505,7 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
+	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
 		Region:              req.Region,
 		ClusterNames:        req.GetEksClusterNames(),
 		EnableAppDiscovery:  req.EnableAppDiscovery,

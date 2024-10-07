@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
+ * Copyright (C) 2024 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -56,7 +56,7 @@ export function AdditionalOptions({
           border-color: ${props => props.theme.colors.spotBackground[1]};
         `}
       >
-        <Text mr={2} typography="body3">
+        <Text mr={2} fontSize={1}>
           Additional Options
         </Text>
         <ButtonIcon

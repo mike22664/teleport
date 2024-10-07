@@ -56,7 +56,10 @@ func TestLoadTLS(t *testing.T) {
 	tlsConfig, err := creds.TLSConfig()
 	require.NoError(t, err)
 	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
-	expiry, ok := creds.Expiry()
+
+	require.Implements(t, (*CredentialsWithExpiry)(nil), creds)
+	expiringCreds := creds.(CredentialsWithExpiry)
+	expiry, ok := expiringCreds.Expiry()
 	require.False(t, ok, "Expiry should not be knows on creds built only from TLS Config")
 	require.True(t, expiry.IsZero(), "unknown expiry should be zero")
 
@@ -103,7 +106,9 @@ func TestLoadIdentityFile(t *testing.T) {
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
 
-	expiry, ok := creds.Expiry()
+	require.Implements(t, (*CredentialsWithExpiry)(nil), creds)
+	expiringCreds := creds.(CredentialsWithExpiry)
+	expiry, ok := expiringCreds.Expiry()
 	require.True(t, ok, "Expiry should be known when we build creds from an identity file")
 	require.Equal(t, tlsCertNotAfter, expiry)
 
@@ -113,7 +118,9 @@ func TestLoadIdentityFile(t *testing.T) {
 	require.Error(t, err)
 	_, err = creds.SSHClientConfig()
 	require.Error(t, err)
-	_, ok = creds.Expiry()
+	require.Implements(t, (*CredentialsWithExpiry)(nil), creds)
+	expiringCreds = creds.(CredentialsWithExpiry)
+	_, ok = expiringCreds.Expiry()
 	require.False(t, ok, "expiry should be unknown on a broken id file")
 }
 
@@ -155,7 +162,9 @@ func TestLoadIdentityFileFromString(t *testing.T) {
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
 
-	expiry, ok := creds.Expiry()
+	require.Implements(t, (*CredentialsWithExpiry)(nil), creds)
+	expiringCreds := creds.(CredentialsWithExpiry)
+	expiry, ok := expiringCreds.Expiry()
 	require.True(t, ok, "expiry should be known when we build creds from an identity file")
 	require.Equal(t, tlsCertNotAfter, expiry)
 
@@ -165,7 +174,9 @@ func TestLoadIdentityFileFromString(t *testing.T) {
 	require.Error(t, err)
 	_, err = creds.SSHClientConfig()
 	require.Error(t, err)
-	_, ok = creds.Expiry()
+	require.Implements(t, (*CredentialsWithExpiry)(nil), creds)
+	expiringCreds = creds.(CredentialsWithExpiry)
+	_, ok = expiringCreds.Expiry()
 	require.False(t, ok, "expiry should be unknown on a broken id file")
 }
 
@@ -191,7 +202,9 @@ func TestLoadKeyPair(t *testing.T) {
 	tlsConfig, err := creds.TLSConfig()
 	require.NoError(t, err)
 	requireEqualTLSConfig(t, expectedTLSConfig, tlsConfig)
-	expiry, ok := creds.Expiry()
+	require.Implements(t, (*CredentialsWithExpiry)(nil), creds)
+	expiringCreds := creds.(CredentialsWithExpiry)
+	expiry, ok := expiringCreds.Expiry()
 	require.True(t, ok, "expiry should be known when we build creds from cert files")
 	require.Equal(t, tlsCertNotAfter, expiry)
 
@@ -199,7 +212,9 @@ func TestLoadKeyPair(t *testing.T) {
 	invalidIdentityCreds := LoadKeyPair("invalid_path", "invalid_path", "invalid_path")
 	_, err = invalidIdentityCreds.TLSConfig()
 	require.Error(t, err)
-	_, ok = invalidIdentityCreds.Expiry()
+	require.Implements(t, (*CredentialsWithExpiry)(nil), creds)
+	expiringCreds = invalidIdentityCreds.(CredentialsWithExpiry)
+	_, ok = expiringCreds.Expiry()
 	require.False(t, ok, "expiry should be unknown on a broken credential")
 }
 
@@ -253,7 +268,9 @@ func TestLoadProfile(t *testing.T) {
 		require.Error(t, err)
 		_, err = creds.SSHClientConfig()
 		require.Error(t, err)
-		_, ok := creds.Expiry()
+		require.Implements(t, (*CredentialsWithExpiry)(nil), creds)
+		expiringCreds := creds.(CredentialsWithExpiry)
+		_, ok := expiringCreds.Expiry()
 		require.False(t, ok, "expiry should be unknown on a broken profile")
 	})
 }
@@ -275,7 +292,9 @@ func testProfileContents(t *testing.T, dir, name string) {
 	require.NoError(t, err)
 	requireEqualSSHConfig(t, expectedSSHConfig, sshConfig)
 
-	expiry, ok := creds.Expiry()
+	require.Implements(t, (*CredentialsWithExpiry)(nil), creds)
+	expiringCreds := creds.(CredentialsWithExpiry)
+	expiry, ok := expiringCreds.Expiry()
 	require.True(t, ok, "expiry should be known when we build creds from a profile")
 	require.Equal(t, tlsCertNotAfter, expiry)
 }
@@ -286,8 +305,7 @@ func writeProfile(t *testing.T, p *profile.Profile) {
 	require.NoError(t, os.MkdirAll(p.KeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.ProxyKeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.TLSClusterCASDir(), 0700))
-	require.NoError(t, os.WriteFile(p.UserSSHKeyPath(), keyPEM, 0600))
-	require.NoError(t, os.WriteFile(p.UserTLSKeyPath(), keyPEM, 0600))
+	require.NoError(t, os.WriteFile(p.UserKeyPath(), keyPEM, 0600))
 	require.NoError(t, os.WriteFile(p.TLSCertPath(), tlsCert, 0600))
 	require.NoError(t, os.WriteFile(p.TLSCAPathCluster(p.SiteName), tlsCACert, 0600))
 	require.NoError(t, os.WriteFile(p.KnownHostsPath(), sshCACert, 0600))

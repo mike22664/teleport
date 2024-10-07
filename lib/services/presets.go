@@ -21,6 +21,7 @@ package services
 import (
 	"slices"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -293,6 +294,7 @@ func NewPresetAuditorRole() types.Role {
 			},
 		},
 	}
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
 }
 
@@ -608,6 +610,7 @@ func NewPresetTerraformProviderRole() types.Role {
 							types.KindBot,
 							types.KindInstaller,
 							types.KindAccessMonitoringRule,
+							types.KindStaticHostUser,
 						},
 						Verbs: RW(),
 					},

@@ -20,6 +20,7 @@ package reversetunnel
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -130,12 +131,9 @@ type Config struct {
 	ID string
 	// ClusterName is a name of this cluster
 	ClusterName string
-	// ClientTLSCipherSuites optionally contains a list of TLS ciphersuites to
-	// use when connecting to other clusters.
-	ClientTLSCipherSuites []uint16
-	// GetClientTLSCertificate returns a TLS certificate to use when connecting
-	// to other clusters.
-	GetClientTLSCertificate utils.GetCertificateFunc
+	// ClientTLS is a TLS config associated with this proxy
+	// used to connect to remote auth servers on remote clusters
+	ClientTLS *tls.Config
 	// Listener is a listener address for reverse tunnel server
 	Listener net.Listener
 	// HostSigners is a list of host signers
@@ -228,8 +226,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.ClusterName == "" {
 		return trace.BadParameter("missing parameter ClusterName")
 	}
-	if cfg.GetClientTLSCertificate == nil {
-		return trace.BadParameter("missing parameter GetClientTLSCertificate")
+	if cfg.ClientTLS == nil {
+		return trace.BadParameter("missing parameter ClientTLS")
 	}
 	if cfg.Listener == nil {
 		return trace.BadParameter("missing parameter Listener")
@@ -1226,7 +1224,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := newHostCertificateCache(srv.localAuthClient, srv.localAccessPoint)
+	certificateCache, err := newHostCertificateCache(srv.localAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

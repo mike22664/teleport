@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"testing"
 	"time"
@@ -35,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	libauth "github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/plugin"
 )
 
@@ -131,15 +132,12 @@ func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCert
 	clusterName, err := auth.GetClusterName()
 	require.NoError(t, err)
 	// Get user certs
-	userKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	userKey, err := native.GenerateRSAPrivateKey()
 	require.NoError(t, err)
-	sshPub, err := ssh.NewPublicKey(userKey.Public())
-	require.NoError(t, err)
-	tlsPub, err := keys.MarshalPublicKey(userKey.Public())
+	userPubKey, err := ssh.NewPublicKey(&userKey.PublicKey)
 	require.NoError(t, err)
 	testCertsReq := libauth.GenerateUserTestCertsRequest{
-		SSHPubKey:      ssh.MarshalAuthorizedKey(sshPub),
-		TLSPubKey:      tlsPub,
+		Key:            ssh.MarshalAuthorizedKey(userPubKey),
 		Username:       user.GetName(),
 		TTL:            time.Hour,
 		Compatibility:  constants.CertificateFormatStandard,
@@ -149,10 +147,14 @@ func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCert
 	require.NoError(t, err)
 
 	// Build credentials from the certs
-	keyPEM, err := keys.MarshalPrivateKey(userKey)
-	require.NoError(t, err)
+	pemKey := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(userKey),
+		},
+	)
 
-	return userCerts{keyPEM, sshCert, tlsCert}
+	return userCerts{pemKey, sshCert, tlsCert}
 }
 
 // CredentialsForUser implements the AuthHelper interface.

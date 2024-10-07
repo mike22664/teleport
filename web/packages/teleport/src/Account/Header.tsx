@@ -21,9 +21,8 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
-  H2,
   Indicator,
-  Subtitle2,
+  Text,
 } from 'design';
 import React from 'react';
 import styled, { useTheme, css } from 'styled-components';
@@ -49,7 +48,7 @@ export function Header({
       {/* lineHeight=0 prevents the icon background from being larger than
           required by the icon itself. */}
       <Box
-        bg={theme.colors.interactive.tonal.neutral[0].background}
+        bg={theme.colors.interactive.tonal.neutral[0]}
         lineHeight={0}
         p={2}
         borderRadius={3}
@@ -57,10 +56,10 @@ export function Header({
         {icon}
       </Box>
       <Box flex="1">
-        <H2>{title}</H2>
-        <Subtitle2 color={theme.colors.text.slightlyMuted}>
+        <Text typography="h4">{title}</Text>
+        <Text typography="body1" color={theme.colors.text.slightlyMuted}>
           {description}
-        </Subtitle2>
+        </Text>
       </Box>
       {/* Indicator is always in the layout so that the description text doesn't
           reflow if visibility changes. */}

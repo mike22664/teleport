@@ -18,10 +18,8 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Indicator, Flex } from 'design';
+import { Text, Box, Indicator, Flex } from 'design';
 import * as Icons from 'design/Icon';
-
-import { P } from 'design/Text/Text';
 
 import {
   Header,
@@ -74,12 +72,11 @@ export function SetupAccessWrapper({
   let $content;
   switch (attempt.status) {
     case 'failed':
-      // TODO(bl-nero): Migrate this to an alert with embedded retry button.
       $content = (
         <>
           <Flex my={3}>
             <Icons.Warning ml={1} mr={2} color="error.main" size="medium" />
-            <P>Encountered Error: {attempt.statusText}</P>
+            <Text>Encountered Error: {attempt.statusText}</Text>
           </Flex>
           <ButtonBlueText ml={1} onClick={fetchUserTraits}>
             Retry

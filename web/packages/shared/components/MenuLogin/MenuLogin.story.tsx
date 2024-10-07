@@ -17,18 +17,17 @@
  */
 
 import React from 'react';
+import { storiesOf } from '@storybook/react';
 import { Flex } from 'design';
 
 import { MenuLogin } from './MenuLogin';
 import { MenuLoginHandle } from './types';
 
-export default {
-  title: 'Shared/MenuLogin',
-};
+storiesOf('Shared/MenuLogin', module).add('MenuLogin', () => {
+  return <MenuLoginExamples />;
+});
 
-export const MenuLoginStory = () => <MenuLoginExamples />;
-
-function MenuLoginExamples() {
+export function MenuLoginExamples() {
   return (
     <Flex
       width="400px"

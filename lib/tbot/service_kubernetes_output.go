@@ -196,7 +196,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	keyRing, err := NewClientKeyRing(routedIdentity, hostCAs)
+	key, err := NewClientKey(routedIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -204,7 +204,7 @@ func (s *KubernetesOutputService) generate(ctx context.Context) error {
 	status := &kubernetesStatus{
 		clusterAddr:           clusterAddr,
 		tlsServerName:         tlsServerName,
-		credentials:           keyRing,
+		credentials:           key,
 		teleportClusterName:   proxyPong.ClusterName,
 		kubernetesClusterName: kubeClusterName,
 	}
@@ -289,7 +289,7 @@ type kubernetesStatus struct {
 	teleportClusterName   string
 	kubernetesClusterName string
 	tlsServerName         string
-	credentials           *client.KeyRing
+	credentials           *client.Key
 }
 
 func generateKubeConfigWithoutPlugin(ks *kubernetesStatus) (*clientcmdapi.Config, error) {
@@ -313,7 +313,7 @@ func generateKubeConfigWithoutPlugin(ks *kubernetesStatus) (*clientcmdapi.Config
 
 	config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: ks.credentials.TLSCert,
-		ClientKeyData:         ks.credentials.TLSPrivateKey.PrivateKeyPEM(),
+		ClientKeyData:         ks.credentials.PrivateKeyPEM(),
 	}
 
 	// Last, create a context linking the cluster to the auth info.

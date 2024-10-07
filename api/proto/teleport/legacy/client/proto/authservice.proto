@@ -123,12 +123,7 @@ message OpenSSHCert {
 // for a user.
 message UserCertsRequest {
   // PublicKey is a public key to be signed.
-  //
-  // Deprecated: Prefer SSHPublicKey and/or TLSPublicKey.
-  bytes PublicKey = 1 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
+  bytes PublicKey = 1 [(gogoproto.jsontag) = "public_key"];
   // Username of key owner.
   string Username = 2 [(gogoproto.jsontag) = "username"];
   // Expires is a desired time of the expiry of the certificate, could
@@ -256,10 +251,7 @@ message UserCertsRequest {
   string SSHLogin = 19;
 
   // AttestationStatement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SSHPublicKeyAttestationStatement and/or
-  // TLSPublicKeyAttestationStatement.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 20 [deprecated = true];
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
 
   // CertPurpose complements CertUsage by informing Teleport of the intended use
   // for the certificates.
@@ -277,20 +269,6 @@ message UserCertsRequest {
   }
   // Purpose is the intended purpose of the certificates.
   CertPurpose Purpose = 21 [(gogoproto.jsontag) = "purpose,omitempty"];
-
-  // SSHPublicKey is a public key in SSH authorized_keys format, to be used as
-  // the subject for the issued SSH certificate. If omitted, only a TLS cert
-  // will be returned.
-  bytes SSHPublicKey = 22 [(gogoproto.jsontag) = "ssh_public_key,omitempty"];
-  // TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format, to be used as
-  // the subject for the issued TLS certificate. If omitted, only an SSH cert
-  // will be returned.
-  bytes TLSPublicKey = 23 [(gogoproto.jsontag) = "tls_public_key,omitempty"];
-
-  // SSHPublicKeyAttestationStatement is an attestation statement for SSHPublicKey.
-  teleport.attestation.v1.AttestationStatement SSHPublicKeyAttestationStatement = 25 [(gogoproto.jsontag) = "ssh_public_key_attestation_statement,omitempty"];
-  // TLSPublicKeyAttestationStatement is an attestation statement for TLSPublicKey.
-  teleport.attestation.v1.AttestationStatement TLSPublicKeyAttestationStatement = 26 [(gogoproto.jsontag) = "tls_public_key_attestation_statement,omitempty"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -457,8 +435,6 @@ message PingResponse {
   // LoadAllCAs signals whether or not tsh should load all CAs when trying
   // to ssh into a node.
   bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
-  // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
-  types.SignatureAlgorithmSuite signature_algorithm_suite = 9;
 
   reserved 6; // LicenseWarnings, jsontag "license_warnings"
   reserved "LicenseWarnings";
@@ -2466,10 +2442,6 @@ message InventoryHeartbeat {
   types.ServerV2 SSHServer = 1;
   // AppServer is a complete app server spec to be heartbeated.
   types.AppServerV3 AppServer = 2;
-  // DatabaseServer is a complete db server spec to be heartbeated.
-  types.DatabaseServerV3 DatabaseServer = 3;
-  // KubeServer is a complete kube server spec to be heartbeated.
-  types.KubernetesServerV3 KubernetesServer = 4;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance

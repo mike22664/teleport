@@ -206,7 +206,7 @@ func TestAccessListReminders_Batched(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
+				entitlements.AccessLists: {Enabled: true},
 			},
 		},
 	})

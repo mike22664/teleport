@@ -768,6 +768,8 @@ func applyAuthOrProxyAddress(fc *FileConfig, cfg *servicecfg.Config) error {
 }
 
 func applyLogConfig(loggerConfig Log, cfg *servicecfg.Config) error {
+	// TODO: this code is copied in the access plugin logging setup `logger.Config.NewSLogLogger`
+	// We'll want to deduplicate the logic next time we refactor the logging setup
 	logger := log.StandardLogger()
 
 	var w io.Writer
@@ -2960,20 +2962,14 @@ func applyJamfConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return nil
 	}
 
-	creds, err := fc.Jamf.readJamfCredentials()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	jamfSpec, err := fc.Jamf.toJamfSpecV1()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	cfg.Jamf = servicecfg.JamfConfig{
-		Spec:        jamfSpec,
-		ExitOnSync:  fc.Jamf.ExitOnSync,
-		Credentials: creds,
+		Spec:       jamfSpec,
+		ExitOnSync: fc.Jamf.ExitOnSync,
 	}
 	return nil
 }

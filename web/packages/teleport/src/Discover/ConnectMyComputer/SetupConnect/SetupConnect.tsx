@@ -21,7 +21,7 @@ import { Link } from 'react-router-dom';
 
 import { ButtonSecondary } from 'design/Button';
 import { getPlatform } from 'design/platform';
-import { Text, Flex, H3, Subtitle3 } from 'design';
+import { Text, Flex } from 'design';
 import * as Icons from 'design/Icon';
 import { makeDeepLinkWithSafeInput } from 'shared/deepLinks';
 import * as connectMyComputer from 'shared/connectMyComputer';
@@ -29,8 +29,6 @@ import {
   DownloadConnect,
   getConnectDownloadLinks,
 } from 'shared/components/DownloadConnect/DownloadConnect';
-
-import { P } from 'design/Text/Text';
 
 import cfg from 'teleport/config';
 import useTeleport from 'teleport/useTeleport';
@@ -126,10 +124,10 @@ export function SetupConnect(
       // Override max-width to match StyledBox's max-width.
       <HintBox header="We're still looking for your computer" maxWidth="800px">
         <Flex flexDirection="column" gap={3}>
-          <P>
+          <Text>
             There are a couple of possible reasons for why we haven't been able
             to detect your computer.
-          </P>
+          </Text>
 
           <ul
             css={`
@@ -162,10 +160,10 @@ export function SetupConnect(
             </li>
           </ul>
 
-          <P>
+          <Text>
             We'll continue to look for the computer whilst you diagnose the
             issue.
-          </P>
+          </Text>
         </Flex>
       </HintBox>
     );
@@ -198,37 +196,33 @@ export function SetupConnect(
       <Header>Set Up Teleport Connect</Header>
 
       <StyledBox>
-        <header>
-          <H3>Step 1</H3>
-          <Subtitle3 mb={3}>Download and Install Teleport Connect</Subtitle3>
-        </header>
+        <Text bold>Step 1: Download and Install Teleport Connect</Text>
 
-        <P>
+        <Text typography="subtitle1" mb={2}>
           Teleport Connect is a native desktop application for browsing and
           accessing your resources. It can also connect your computer to the
           cluster as an SSH resource.
-        </P>
-        <P mb={3}>
+          <br />
+          <br />
           Once you’ve downloaded Teleport Connect, run the installer to add it
           to your computer’s applications.
-        </P>
+        </Text>
 
         <Flex flexWrap="wrap" alignItems="baseline" gap={2}>
           <DownloadConnect downloadLinks={downloadLinks} />
-          <P>Already have Teleport Connect? Skip to the next step.</P>
+          <Text typography="subtitle1">
+            Already have Teleport Connect? Skip to the next step.
+          </Text>
         </Flex>
       </StyledBox>
 
       <StyledBox>
-        <header>
-          <H3>Step 2</H3>
-          <Subtitle3 mb={3}>Sign In and Connect My Computer</Subtitle3>
-        </header>
+        <Text bold>Step 2: Sign In and Connect My Computer</Text>
 
-        <P mb={3}>
+        <Text typography="subtitle1" mb={2}>
           The button below will open Teleport Connect. Once you are logged in,
           Teleport Connect will prompt you to connect your computer.
-        </P>
+        </Text>
 
         <ButtonSecondary as="a" href={connectMyComputerDeepLink}>
           Sign In & Connect My Computer

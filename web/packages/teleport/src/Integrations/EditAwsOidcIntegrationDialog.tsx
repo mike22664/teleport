@@ -38,9 +38,8 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredRoleArn } from 'shared/components/Validation/rules';
+import { CheckboxInput } from 'design/Checkbox';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
-
-import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
 import { Integration } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
@@ -219,14 +218,19 @@ export function EditAwsOidcIntegrationDialog(props: Props) {
           </DialogContent>
           <DialogFooter>
             {showGenerateCommand && scriptUrl && (
-              <FieldCheckbox
-                label="I ran the command"
-                name="checkbox"
-                checked={confirmed}
-                onChange={e => {
-                  setConfirmed(e.target.checked);
-                }}
-              />
+              <Box mb={1}>
+                <CheckboxInput
+                  role="checkbox"
+                  type="checkbox"
+                  name="checkbox"
+                  data-testid="checkbox"
+                  checked={confirmed}
+                  onChange={e => {
+                    setConfirmed(e.target.checked);
+                  }}
+                />
+                I ran the command
+              </Box>
             )}
             <ButtonPrimary
               mr="3"

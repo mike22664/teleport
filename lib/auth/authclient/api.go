@@ -1198,14 +1198,13 @@ type Cache interface {
 	// GetAutoUpdateVersion gets the AutoUpdateVersion from the backend.
 	GetAutoUpdateVersion(ctx context.Context) (*autoupdate.AutoUpdateVersion, error)
 
-	// GetAccessGraphSettings returns the access graph settings.
-	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
-
 	// GetSPIFFEFederation gets a SPIFFE Federation by name.
 	GetSPIFFEFederation(ctx context.Context, name string) (*machineidv1.SPIFFEFederation, error)
 	// ListSPIFFEFederations lists all SPIFFE Federations using Google style
 	// pagination.
 	ListSPIFFEFederations(ctx context.Context, pageSize int, lastToken string) ([]*machineidv1.SPIFFEFederation, string, error)
+	// GetAccessGraphSettings returns the access graph settings.
+	GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error)
 
 	// ListStaticHostUsers lists static host users.
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)

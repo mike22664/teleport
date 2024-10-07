@@ -18,7 +18,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { MemoryRouter } from 'react-router';
-import { http, HttpResponse, delay } from 'msw';
+import { rest } from 'msw';
+import { mswLoader } from 'msw-storybook-addon';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -49,6 +50,7 @@ import { ManualHelmDialog } from './ManualHelmDialog';
 
 export default {
   title: 'Teleport/Discover/Kube/EnrollEksClusters/Dialogs',
+  loaders: [mswLoader],
 };
 
 export const EnrollmentDialogStory = () => (
@@ -87,8 +89,8 @@ AgentWaitingDialogStory.storyName = 'AgentWaitingDialog';
 AgentWaitingDialogStory.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.api.kubernetesPath, () => {
-        return delay('infinite');
+      rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
+        return res(ctx.delay('infinite'));
       }),
     ],
   },
@@ -116,8 +118,8 @@ export const AgentWaitingDialogSuccess = () => (
 AgentWaitingDialogSuccess.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.api.kubernetesPath, () => {
-        return delay('infinite');
+      rest.get(cfg.api.kubernetesPath, (req, res, ctx) => {
+        return res(ctx.delay('infinite'));
       }),
     ],
   },
@@ -171,7 +173,7 @@ export const ManualHelmDialogStory = () => {
       name: 'Eks',
       kind: ResourceKind.Kubernetes,
       icon: 'eks',
-      keywords: [],
+      keywords: '',
       event: DiscoverEventResource.KubernetesEks,
     },
     exitFlow: () => null,
@@ -223,13 +225,15 @@ ManualHelmDialogStory.storyName = 'ManualHelmDialog';
 ManualHelmDialogStory.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () => {
-        return HttpResponse.json({
-          id: 'token-id',
-          suggestedLabels: [
-            { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
-          ],
-        });
+      rest.post(cfg.api.joinTokenPath, (req, res, ctx) => {
+        return res(
+          ctx.json({
+            id: 'token-id',
+            suggestedLabels: [
+              { name: INTERNAL_RESOURCE_ID_LABEL_KEY, value: 'resource-id' },
+            ],
+          })
+        );
       }),
     ],
   },

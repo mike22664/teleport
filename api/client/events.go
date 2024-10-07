@@ -89,17 +89,21 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 			out.Resource = &proto.Event_BotInstance{
 				BotInstance: r,
 			}
-		case *clusterconfigpb.AccessGraphSettings:
-			out.Resource = &proto.Event_AccessGraphSettings{
-				AccessGraphSettings: r,
-			}
 		case *machineidv1.SPIFFEFederation:
 			out.Resource = &proto.Event_SPIFFEFederation{
 				SPIFFEFederation: r,
 			}
+		case *clusterconfigpb.AccessGraphSettings:
+			out.Resource = &proto.Event_AccessGraphSettings{
+				AccessGraphSettings: r,
+			}
 		case *userprovisioningpb.StaticHostUser:
 			out.Resource = &proto.Event_StaticHostUserV2{
 				StaticHostUserV2: r,
+			}
+		case *usertasksv1.UserTask:
+			out.Resource = &proto.Event_UserTask{
+				UserTask: r,
 			}
 		case *autoupdate.AutoUpdateConfig:
 			out.Resource = &proto.Event_AutoUpdateConfig{
@@ -108,10 +112,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		case *autoupdate.AutoUpdateVersion:
 			out.Resource = &proto.Event_AutoUpdateVersion{
 				AutoUpdateVersion: r,
-			}
-		case *usertasksv1.UserTask:
-			out.Resource = &proto.Event_UserTask{
-				UserTask: r,
 			}
 		default:
 			return nil, trace.BadParameter("resource type %T is not supported", r)
@@ -547,22 +547,22 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetBotInstance(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetAccessGraphSettings(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
 	} else if r := in.GetSPIFFEFederation(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetAccessGraphSettings(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetStaticHostUserV2(); r != nil {
+		out.Resource = types.Resource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetUserTask(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAutoUpdateConfig(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetAutoUpdateVersion(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
-	} else if r := in.GetUserTask(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else {

@@ -1031,7 +1031,8 @@ func (s *Service) UpdateAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	features := modules.GetProtoEntitlement(modules.GetModules().Features().ToProto(), entitlements.Policy)
+	if !features.Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1075,7 +1076,8 @@ func (s *Service) UpsertAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	features := modules.GetProtoEntitlement(modules.GetModules().Features().ToProto(), entitlements.Policy)
+	if !features.Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1119,7 +1121,8 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	features := modules.GetProtoEntitlement(modules.GetModules().Features().ToProto(), entitlements.Policy)
+	if !features.Enabled && !modules.GetModules().Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 

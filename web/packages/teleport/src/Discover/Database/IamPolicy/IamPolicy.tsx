@@ -17,10 +17,8 @@
  */
 
 import React from 'react';
-import { Text, Box, Flex, Indicator, Link, H3 } from 'design';
+import { Text, Box, Flex, Indicator, Link } from 'design';
 import * as Icons from 'design/Icon';
-
-import { P } from 'design/Text/Text';
 
 import useTeleport from 'teleport/useTeleport';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
@@ -78,7 +76,9 @@ export function IamPolicyView({
           )}
           {attempt.status === 'success' && (
             <Box>
-              <H3>Run this AWS CLI command to create an IAM policy:</H3>
+              <Text bold>
+                Run this AWS CLI command to create an IAM policy:
+              </Text>
               <Box mt={2} mb={2}>
                 <TextSelectCopyMulti
                   lines={[
@@ -96,8 +96,10 @@ export function IamPolicyView({
                   ]}
                 />
               </Box>
-              <H3>Then attach this policy to your AWS EC2 instance role.</H3>
-              <P>
+              <Text bold>
+                Then attach this policy to your AWS EC2 instance role.
+              </Text>
+              <Text>
                 See{' '}
                 <Link
                   href="https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_manage-attach-detach.html#add-policies-console"
@@ -112,7 +114,7 @@ export function IamPolicyView({
                 >
                   Attach an IAM role to an instance
                 </Link>
-              </P>
+              </Text>
             </Box>
           )}
         </Flex>

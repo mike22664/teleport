@@ -20,8 +20,6 @@ package s3sessions
 
 import (
 	"context"
-	"crypto/md5"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/url"
@@ -29,14 +27,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
@@ -51,34 +49,34 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 		Key:    aws.String(h.path(sessionID)),
 	}
 	if !h.Config.DisableServerSideEncryption {
-		input.ServerSideEncryption = types.ServerSideEncryptionAwsKms
+		input.ServerSideEncryption = aws.String(s3.ServerSideEncryptionAwsKms)
 
 		if h.Config.SSEKMSKey != "" {
 			input.SSEKMSKeyId = aws.String(h.Config.SSEKMSKey)
 		}
 	}
 	if h.Config.ACL != "" {
-		input.ACL = types.ObjectCannedACL(h.Config.ACL)
+		input.ACL = aws.String(h.Config.ACL)
 	}
 
-	resp, err := h.client.CreateMultipartUpload(ctx, input)
+	resp, err := h.client.CreateMultipartUploadWithContext(ctx, input)
 	if err != nil {
 		return nil, trace.Wrap(awsutils.ConvertS3Error(err), "CreateMultiPartUpload session(%v)", sessionID)
 	}
 
 	h.WithFields(logrus.Fields{
-		"upload":  aws.ToString(resp.UploadId),
+		"upload":  aws.StringValue(resp.UploadId),
 		"session": sessionID,
-		"key":     aws.ToString(resp.Key),
+		"key":     aws.StringValue(resp.Key),
 	}).Infof("Created upload in %v", time.Since(start))
 
-	return &events.StreamUpload{SessionID: sessionID, ID: aws.ToString(resp.UploadId)}, nil
+	return &events.StreamUpload{SessionID: sessionID, ID: aws.StringValue(resp.UploadId)}, nil
 }
 
 // UploadPart uploads part
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	// This upload exceeded maximum number of supported parts, error now.
-	if partNumber > int64(s3manager.MaxUploadParts) {
+	if partNumber > s3manager.MaxUploadParts {
 		return nil, trace.LimitExceeded(
 			"exceeded total allowed S3 limit MaxUploadParts (%d). Adjust PartSize to fit in this limit", s3manager.MaxUploadParts)
 	}
@@ -91,30 +89,16 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 		"key":     uploadKey,
 	})
 
-	// Calculate the content MD5 hash to be included in the request. This is required for S3 buckets with Object Lock enabled.
-	hash := md5.New()
-	if _, err := io.Copy(hash, partBody); err != nil {
-		return nil, trace.Wrap(err, "failed to calculate content MD5 hash")
-	}
-	md5sum := base64.StdEncoding.EncodeToString(hash.Sum(nil))
-
-	// Reset the partBody reader to the beginning before passing it the params.
-	// This is necessary because after calculating the md5 hash the partBody reader will have been moved to the end of the data.
-	if _, err := partBody.Seek(0, io.SeekStart); err != nil {
-		return nil, trace.Wrap(err, "failed to reset part body reader to beginning")
-	}
-
 	params := &s3.UploadPartInput{
 		Bucket:     aws.String(h.Bucket),
 		UploadId:   aws.String(upload.ID),
 		Key:        aws.String(uploadKey),
 		Body:       partBody,
-		PartNumber: aws.Int32(int32(partNumber)),
-		ContentMD5: aws.String(md5sum),
+		PartNumber: aws.Int64(partNumber),
 	}
 
 	log.Debugf("Uploading part %v", partNumber)
-	resp, err := h.client.UploadPart(ctx, params)
+	resp, err := h.client.UploadPartWithContext(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(awsutils.ConvertS3Error(err),
 			"UploadPart(upload %v) part(%v) session(%v)", upload.ID, partNumber, upload.SessionID)
@@ -127,7 +111,7 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 	// the part we just uploaded, however.
 	log.Infof("Uploaded part %v in %v", partNumber, time.Since(start))
 	return &events.StreamPart{
-		ETag:         aws.ToString(resp.ETag),
+		ETag:         aws.StringValue(resp.ETag),
 		Number:       partNumber,
 		LastModified: time.Now(),
 	}, nil
@@ -146,7 +130,7 @@ func (h *Handler) abortUpload(ctx context.Context, upload events.StreamUpload) e
 		UploadId: aws.String(upload.ID),
 	}
 	log.Debug("Aborting upload")
-	_, err := h.client.AbortMultipartUpload(ctx, req)
+	_, err := h.client.AbortMultipartUploadWithContext(ctx, req)
 	if err != nil {
 		return awsutils.ConvertS3Error(err)
 	}
@@ -182,11 +166,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return parts[i].Number < parts[j].Number
 	})
 
-	completedParts := make([]types.CompletedPart, len(parts))
+	completedParts := make([]*s3.CompletedPart, len(parts))
 	for i := range parts {
-		completedParts[i] = types.CompletedPart{
+		completedParts[i] = &s3.CompletedPart{
 			ETag:       aws.String(parts[i].ETag),
-			PartNumber: aws.Int32(int32(parts[i].Number)),
+			PartNumber: aws.Int64(parts[i].Number),
 		}
 	}
 
@@ -195,9 +179,9 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		Bucket:          aws.String(h.Bucket),
 		Key:             aws.String(uploadKey),
 		UploadId:        aws.String(upload.ID),
-		MultipartUpload: &types.CompletedMultipartUpload{Parts: completedParts},
+		MultipartUpload: &s3.CompletedMultipartUpload{Parts: completedParts},
 	}
-	_, err := h.client.CompleteMultipartUpload(ctx, params)
+	_, err := h.client.CompleteMultipartUploadWithContext(ctx, params)
 	if err != nil {
 		return trace.Wrap(awsutils.ConvertS3Error(err),
 			"CompleteMultipartUpload(upload %v) session(%v)", upload.ID, upload.SessionID)
@@ -218,27 +202,29 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	log.Debug("Listing parts for upload")
 
 	var parts []events.StreamPart
-
-	paginator := s3.NewListPartsPaginator(h.client, &s3.ListPartsInput{
-		Bucket:   aws.String(h.Bucket),
-		Key:      aws.String(uploadKey),
-		UploadId: aws.String(upload.ID),
-	})
-
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
+	var partNumberMarker *int64
+	for i := 0; i < defaults.MaxIterationLimit; i++ {
+		re, err := h.client.ListPartsWithContext(ctx, &s3.ListPartsInput{
+			Bucket:           aws.String(h.Bucket),
+			Key:              aws.String(uploadKey),
+			UploadId:         aws.String(upload.ID),
+			PartNumberMarker: partNumberMarker,
+		})
 		if err != nil {
 			return nil, awsutils.ConvertS3Error(err)
 		}
-		for _, part := range page.Parts {
+		for _, part := range re.Parts {
 			parts = append(parts, events.StreamPart{
-				Number:       int64(aws.ToInt32(part.PartNumber)),
-				ETag:         aws.ToString(part.ETag),
-				LastModified: aws.ToTime(part.LastModified),
+				Number:       aws.Int64Value(part.PartNumber),
+				ETag:         aws.StringValue(part.ETag),
+				LastModified: aws.TimeValue(part.LastModified),
 			})
 		}
+		if !aws.BoolValue(re.IsTruncated) {
+			break
+		}
+		partNumberMarker = re.NextPartNumberMarker
 	}
-
 	// Parts must be sorted in PartNumber order.
 	sort.Slice(parts, func(i, j int) bool {
 		return parts[i].Number < parts[j].Number
@@ -254,23 +240,31 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		prefix = &trimmed
 	}
 	var uploads []events.StreamUpload
-	paginator := s3.NewListMultipartUploadsPaginator(h.client, &s3.ListMultipartUploadsInput{
-		Bucket: aws.String(h.Bucket),
-		Prefix: prefix,
-	})
-
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
+	var keyMarker *string
+	var uploadIDMarker *string
+	for i := 0; i < defaults.MaxIterationLimit; i++ {
+		input := &s3.ListMultipartUploadsInput{
+			Bucket:         aws.String(h.Bucket),
+			Prefix:         prefix,
+			KeyMarker:      keyMarker,
+			UploadIdMarker: uploadIDMarker,
+		}
+		re, err := h.client.ListMultipartUploadsWithContext(ctx, input)
 		if err != nil {
 			return nil, awsutils.ConvertS3Error(err)
 		}
-		for _, upload := range page.Uploads {
+		for _, upload := range re.Uploads {
 			uploads = append(uploads, events.StreamUpload{
-				ID:        aws.ToString(upload.UploadId),
-				SessionID: h.fromPath(aws.ToString(upload.Key)),
-				Initiated: aws.ToTime(upload.Initiated),
+				ID:        aws.StringValue(upload.UploadId),
+				SessionID: h.fromPath(aws.StringValue(upload.Key)),
+				Initiated: aws.TimeValue(upload.Initiated),
 			})
 		}
+		if !aws.BoolValue(re.IsTruncated) {
+			break
+		}
+		keyMarker = re.NextKeyMarker
+		uploadIDMarker = re.NextUploadIdMarker
 	}
 
 	sort.Slice(uploads, func(i, j int) bool {

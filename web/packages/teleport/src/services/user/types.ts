@@ -128,7 +128,7 @@ export interface User {
   // traits are preset traits defined in Teleport, such as
   // logins, db_role etc. These traits are defiend in UserTraits interface.
   traits?: UserTraits;
-  // allTraits contains both preset traits, as well as externalTraits
+  /// allTraits contains both preset traits, as well as externalTraits
   // such as those created by external IdP attributes to roles mapping
   // or new values as set by Teleport admin.
   allTraits?: AllUserTraits;

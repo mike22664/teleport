@@ -35,8 +35,6 @@ import {
 } from 'design/SVGIcon';
 import { Box, Flex, Link as ExternalLink, Text } from 'design';
 
-import { P } from 'design/Text/Text';
-
 import cfg from 'teleport/config';
 
 import {
@@ -148,10 +146,10 @@ export function AddBotsPicker() {
         <FeatureHeaderTitle>Select Bot Type</FeatureHeaderTitle>
       </FeatureHeader>
 
-      <P mb="5">
+      <Text typography="body1" mb="5">
         Set up Teleport Machine ID to allow CI/CD workflows and other machines
         to access resources protected by Teleport.
-      </P>
+      </Text>
 
       <BotTiles hasCreateBotPermission={ctx.getFeatureFlags().addBots} />
     </>
@@ -244,6 +242,20 @@ function GuidedTile({
   );
 }
 
+export function DisplayTile({
+  icon,
+  title,
+}: {
+  title: string;
+  icon: JSX.Element;
+}) {
+  return (
+    <HoverIntegrationTile>
+      <TileContent icon={icon} title={title} />
+    </HoverIntegrationTile>
+  );
+}
+
 function TileContent({ icon, title }) {
   return (
     <>
@@ -265,4 +277,9 @@ const BadgeGuided = styled.div`
   top: 0px;
   right: 0px;
   font-size: 10px;
+`;
+
+const HoverIntegrationTile = styled(IntegrationTile)`
+  background: none;
+  transition: all 0.1s ease-in;
 `;

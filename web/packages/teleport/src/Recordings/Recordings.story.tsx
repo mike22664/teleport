@@ -63,10 +63,9 @@ export const Processing = () => {
 
 export const Failed = () => {
   const ctx = new Context();
-  ctx.clusterService.fetchClusters = () =>
-    Promise.reject(new Error('fetch cluster error'));
+  ctx.clusterService.fetchClusters = () => Promise.resolve([]);
   ctx.recordingsService.fetchRecordings = () =>
-    Promise.reject(new Error('fetch recording error'));
+    Promise.reject(new Error('server error'));
   return render(ctx);
 };
 

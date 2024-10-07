@@ -54,7 +54,6 @@ export type AttributeMapping = {
   value: string;
   name_format?: string;
 };
-
 /**
  * SamlServiceProviderPreset defines SAML service provider preset types.
  * Used to define custom or pre-defined configuration flow.

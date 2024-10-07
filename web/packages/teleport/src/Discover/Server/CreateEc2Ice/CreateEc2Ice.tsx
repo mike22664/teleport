@@ -18,7 +18,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Table from 'design/DataTable';
-import { Box, Indicator, Text, Flex, H3 } from 'design';
+import { Box, Indicator, Text, Flex } from 'design';
 import { Warning } from 'design/Icon';
 import { Danger } from 'design/Alert';
 import { FetchStatus } from 'design/DataTable/types';
@@ -278,10 +278,10 @@ function SecurityGroups({
 }) {
   return (
     <>
-      <H3 my={2}>
+      <Text mb={1} typography="h4">
         Select AWS Security Groups to assign to the new EC2 Instance Connect
         Endpoint:
-      </H3>
+      </Text>
       <Text mb={2}>
         The security groups you pick should allow outbound connectivity for the
         agent to be able to dial Teleport clusters. If you don't select any

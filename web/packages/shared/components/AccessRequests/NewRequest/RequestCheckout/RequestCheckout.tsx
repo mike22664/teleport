@@ -26,12 +26,9 @@ import {
   ButtonPrimary,
   ButtonSecondary,
   Flex,
-  H2,
   Image,
   Indicator,
   LabelInput,
-  P3,
-  Subtitle2,
   Text,
 } from 'design';
 import {
@@ -42,14 +39,13 @@ import {
   Cross,
 } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
+import { CheckboxInput, CheckboxWrapper } from 'design/Checkbox';
 import { Danger } from 'design/Alert';
 
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { pluralize } from 'shared/utils/text';
 import { Option } from 'shared/components/Select';
-
-import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 
 import { CreateRequest } from '../../Shared/types';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
@@ -199,9 +195,9 @@ export function RequestCheckout<T extends PendingListItem>({
           style={{ cursor: 'pointer' }}
         />
         <Box>
-          <H2>
+          <Text typography="h4" color="text.main" bold>
             {data.length} {pluralize(data.length, 'Resource')} Selected
-          </H2>
+          </Text>
         </Box>
       </Flex>
     );
@@ -226,12 +222,14 @@ export function RequestCheckout<T extends PendingListItem>({
           {createAttempt.status === 'success' ? (
             <>
               <Box>
-                <Box as="header" mt={2} mb={7} textAlign="center">
-                  <H2 mb={1}>Resources Requested Successfully</H2>
-                  <Subtitle2 color="text.slightlyMuted">
+                <Box mt={2} mb={7} textAlign="center">
+                  <Text typography="h4" color="text.main" bold>
+                    Resources Requested Successfully
+                  </Text>
+                  <Text typography="subtitle1" color="text.slightlyMuted">
                     You've successfully requested {numRequestedResources}{' '}
                     {pluralize(numRequestedResources, 'resource')}
-                  </Subtitle2>
+                  </Text>
                 </Box>
                 <Flex justifyContent="center" mb={3}>
                   <Image src={shieldCheck} width="250px" height="179px" />
@@ -284,7 +282,7 @@ export function RequestCheckout<T extends PendingListItem>({
                               theme.colors.buttons.trashButton.default};
                             border-radius: 2px;
 
-                            &:hover {
+                            :hover {
                               background-color: ${({ theme }) =>
                                 theme.colors.buttons.trashButton.hover};
                             }
@@ -494,7 +492,7 @@ function ResourceRequestRoles({
               <LabelInput mb={0} style={{ cursor: 'pointer' }}>
                 Roles
               </LabelInput>
-              <Text typography="body4" mb={2}>
+              <Text typography="newBody4" mb={2}>
                 {selectedRoles.length} role
                 {selectedRoles.length !== 1 ? 's' : ''} selected
               </Text>
@@ -536,20 +534,34 @@ function ResourceRequestRoles({
       {fetchAttempt.status === 'success' && expanded && (
         <Box mt={2}>
           {roles.map((roleName, index) => {
-            const checked = selectedRoles.includes(roleName);
+            const id = `${roleName}${index}`;
             return (
-              <RoleRowContainer checked={checked}>
-                <StyledFieldCheckbox
-                  key={index}
+              <CheckboxWrapper
+                key={index}
+                css={`
+                  width: 100%;
+                  cursor: pointer;
+                  background: ${({ theme }) => theme.colors.levels.surface};
+
+                  &:hover {
+                    border-color: ${({ theme }) =>
+                      theme.colors.levels.elevated};
+                  }
+                `}
+                as="label"
+                htmlFor={id}
+              >
+                <CheckboxInput
+                  type="checkbox"
                   name={roleName}
+                  id={id}
                   onChange={e => {
                     onInputChange(roleName, e);
                   }}
-                  checked={checked}
-                  label={roleName}
-                  size="small"
+                  checked={selectedRoles.includes(roleName)}
                 />
-              </RoleRowContainer>
+                {roleName}
+              </CheckboxWrapper>
             );
           })}
           {selectedRoles.length < roles.length && (
@@ -566,10 +578,10 @@ function ResourceRequestRoles({
               `}
             >
               <Warning mr={3} size="medium" color="warning.main" />
-              <P3>
+              <Text typography="subtitle2">
                 Modifying this role set may disable access to some of the above
                 resources. Use with caution.
-              </P3>
+              </Text>
             </Flex>
           )}
         </Box>
@@ -577,45 +589,6 @@ function ResourceRequestRoles({
     </Box>
   );
 }
-
-const RoleRowContainer = styled.div<{ checked?: boolean }>`
-  transition: all 150ms;
-  position: relative;
-
-  // TODO(bl-nero): That's the third place where we're copying these
-  // definitions. We need to make them reusable.
-  &:hover {
-    background-color: ${props => props.theme.colors.levels.surface};
-
-    // We use a pseudo element for the shadow with position: absolute in order to prevent
-    // the shadow from increasing the size of the layout and causing scrollbar flicker.
-    &:after {
-      box-shadow: ${props => props.theme.boxShadow[3]};
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: -1;
-      width: 100%;
-      height: 100%;
-    }
-  }
-`;
-
-const StyledFieldCheckbox = styled(FieldCheckbox)`
-  margin: 0;
-  padding: ${p => p.theme.space[2]}px;
-  background-color: ${props =>
-    props.checked
-      ? props.theme.colors.interactive.tonal.primary[2]
-      : 'transparent'};
-  border-bottom: ${props => props.theme.borders[2]}
-    ${props => props.theme.colors.interactive.tonal.neutral[0]};
-
-  & > label {
-    display: block; // make it full-width
-  }
-`;
 
 function TextBox({
   reason,
@@ -652,7 +625,7 @@ function TextBox({
           outline: none;
           background: transparent;
 
-          &::placeholder {
+          ::placeholder {
             color: ${({ theme }) => theme.colors.text.muted};
           }
 
@@ -685,8 +658,6 @@ function getPrettyResourceKind(kind: ResourceKind): string {
       return 'User Group';
     case 'windows_desktop':
       return 'Desktop';
-    case 'saml_idp_service_provider':
-      return 'SAML Application';
     default:
       kind satisfies never;
       return kind;

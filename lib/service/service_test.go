@@ -41,6 +41,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -48,7 +49,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -195,8 +195,8 @@ func TestDynamicClientReuse(t *testing.T) {
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Auth.Enabled = true
-	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
 	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Auth.SessionRecordingConfig.SetMode(types.RecordOff)
 	cfg.Proxy.Enabled = true
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"}
@@ -369,8 +369,9 @@ func TestServiceCheckPrincipals(t *testing.T) {
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
-	testConnector, err := newConnector(tlsServer.Identity, tlsServer.Identity)
-	require.NoError(t, err)
+	testConnector := &Connector{
+		ServerIdentity: tlsServer.Identity,
+	}
 
 	tests := []struct {
 		inPrincipals  []string
@@ -888,8 +889,17 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				// Setting Supervisor so that `ExitContext` can be called.
 				Supervisor: NewSupervisor("process-id", cfg.Log),
 			}
+			conn := &Connector{
+				ServerIdentity: &state.Identity{
+					Cert: &ssh.Certificate{
+						Permissions: ssh.Permissions{
+							Extensions: map[string]string{},
+						},
+					},
+				},
+			}
 			tls, err := process.setupProxyTLSConfig(
-				&Connector{},
+				conn,
 				&mockReverseTunnelServer{},
 				&mockAccessPoint{},
 				"cluster",
@@ -1228,9 +1238,10 @@ func TestProxyGRPCServers(t *testing.T) {
 	serverIdentity, err := auth.NewServerIdentity(testAuthServer.AuthServer, hostID, types.RoleProxy)
 	require.NoError(t, err)
 
-	testConnector, err := newConnector(serverIdentity, serverIdentity)
-	require.NoError(t, err)
-	testConnector.Client = client
+	testConnector := &Connector{
+		ServerIdentity: serverIdentity,
+		Client:         client,
+	}
 
 	// Create a listener for the insecure gRPC server.
 	insecureListener, err := net.Listen("tcp", "localhost:0")
@@ -1347,19 +1358,10 @@ func TestProxyGRPCServers(t *testing.T) {
 		{
 			name: "secure client to secure server",
 			credentials: func() credentials.TransportCredentials {
-				// Create a new client using the client identity.
-				tlsConfig := utils.TLSConfig(nil)
-				tlsConfig.ServerName = apiutils.EncodeClusterName(testConnector.ClusterName())
-				tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-					tlsCert, err := testConnector.ClientGetCertificate()
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					return tlsCert, nil
-				}
-				tlsConfig.InsecureSkipVerify = true
-				tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(testConnector.ClientGetPool)
-				return credentials.NewTLS(tlsConfig)
+				// Create a new client using the server identity.
+				creds, err := testConnector.ServerIdentity.TLSConfig(nil)
+				require.NoError(t, err)
+				return credentials.NewTLS(creds)
 			}(),
 			listenerAddr: secureListener.Addr().String(),
 			assertErr:    require.NoError,
@@ -1433,6 +1435,8 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 					Spec: &types.JamfSpecV1{
 						Enabled:     true,
 						ApiEndpoint: "https://example.jamfcloud.com",
+						Username:    "llama",
+						Password:    "supersecret!!1!ONE",
 					},
 				},
 			},

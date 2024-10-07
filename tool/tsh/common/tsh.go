@@ -983,8 +983,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play.Flag("speed", "Playback speed, applicable when streaming SSH or Kubernetes sessions.").Default("1x").EnumVar(&cf.PlaySpeed, "0.5x", "1x", "2x", "4x", "8x")
 	play.Flag("skip-idle-time", "Quickly skip over idle time, applicable when streaming SSH or Kubernetes sessions.").BoolVar(&cf.NoWait)
 	play.Flag("format", defaults.FormatFlagDescription(
-		teleport.PTY, teleport.JSON, teleport.YAML,
-	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML)
+		teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text,
+	)).Short('f').Default(teleport.PTY).EnumVar(&cf.Format, teleport.PTY, teleport.JSON, teleport.YAML, teleport.Text)
 	play.Arg("session-id", "ID or path to session file to play").Required().StringVar(&cf.SessionID)
 
 	// scp
@@ -1950,7 +1950,7 @@ func onLogin(cf *CLIConf) error {
 	// Only allow the option during the login ceremony.
 	tc.AllowStdinHijack = true
 
-	keyRing, err := tc.Login(cf.Context)
+	key, err := tc.Login(cf.Context)
 	if err != nil {
 		if !cf.ExplicitUsername && authclient.IsInvalidLocalCredentialError(err) {
 			fmt.Fprintf(os.Stderr, "\nhint: set the --user flag to log in as a specific user, or leave it empty to use the system user (%v)\n\n", tc.Username)
@@ -1964,7 +1964,7 @@ func onLogin(cf *CLIConf) error {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
-	clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, keyRing)
+	clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1976,14 +1976,14 @@ func onLogin(cf *CLIConf) error {
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
 	// access requests to be applied to identity files.
 	if cf.IdentityFileOut != "" {
-		// keyRing.TrustedCA at this point only has the CA of the root cluster we
+		// key.TrustedCA at this point only has the CA of the root cluster we
 		// logged into. We need to fetch all the CAs for leaf clusters too, to
 		// make them available in the identity file.
 		authorities, err := rootAuthClient.GetCertAuthorities(cf.Context, types.HostCA, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(authorities)
+		key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(authorities)
 		// If we're in multiplexed mode get SNI name for kube from single multiplexed proxy addr
 		kubeTLSServerName := ""
 		if tc.TLSRoutingEnabled {
@@ -1993,7 +1993,7 @@ func onLogin(cf *CLIConf) error {
 		}
 		filesWritten, err := identityfile.Write(cf.Context, identityfile.WriteConfig{
 			OutputPath:           cf.IdentityFileOut,
-			KeyRing:              keyRing,
+			Key:                  key,
 			Format:               cf.IdentityFormat,
 			KubeProxyAddr:        tc.KubeClusterAddr(),
 			OverwriteDestination: cf.IdentityOverwrite,
@@ -2008,10 +2008,10 @@ func onLogin(cf *CLIConf) error {
 		return nil
 	}
 
-	// Attempt device login. This activates a fresh keyRing if successful.
+	// Attempt device login. This activates a fresh key if successful.
 	// We do not save the resulting in the identity file above on purpose, as this
 	// certificate is bound to the present device.
-	if err := tc.AttemptDeviceLogin(cf.Context, keyRing, rootAuthClient); err != nil {
+	if err := tc.AttemptDeviceLogin(cf.Context, key, rootAuthClient); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2546,6 +2546,7 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	req, err := services.NewAccessRequestWithResources(cf.Username, roles, requestedResourceIDs)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3605,11 +3606,6 @@ func onSSH(cf *CLIConf) error {
 
 	tc.AllowHeadless = true
 
-	// Support calling `tsh ssh -- <command>` (with a double dash before the command)
-	if len(cf.RemoteCommand) > 0 && strings.TrimSpace(cf.RemoteCommand[0]) == "--" {
-		cf.RemoteCommand = cf.RemoteCommand[1:]
-	}
-
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
 		sshFunc := func() error {
@@ -4144,11 +4140,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.AddKeysToAgent = client.AddKeysToAgentNo
 	}
 
-	// Identity files don't support split SSH/TLS keys.
-	if cf.IdentityFileOut != "" && cf.IdentityFormat == identityfile.FormatFile {
-		c.GenerateUnifiedKey = true
-	}
-
 	// headless login produces short-lived MFA-verifed certs, which should never be added to the agent.
 	if cf.AuthConnector == constants.HeadlessConnector {
 		if cf.AddKeysToAgent == client.AddKeysToAgentYes || cf.AddKeysToAgent == client.AddKeysToAgentOnly {
@@ -4451,19 +4442,19 @@ func flattenIdentity(cf *CLIConf) error {
 
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) error {
-	keyRing, err := identityfile.KeyRingFromIdentityFile(cf.IdentityFileIn, cf.Proxy, cf.SiteName)
+	key, err := identityfile.KeyFromIdentityFile(cf.IdentityFileIn, cf.Proxy, cf.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// unmarshal certificate bytes into a ssh.PublicKey
-	cert, _, _, _, err := ssh.ParseAuthorizedKey(keyRing.Cert)
+	cert, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, keyRing.SSHPrivateKey.Signer, keyRing.SSHPrivateKey.MarshalSSHPublicKey())
-	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(keyRing.SSHPrivateKey.SSHPublicKey()))
+	fmt.Printf("Cert: %#v\nPriv: %#v\nPub: %#v\n", cert, key.Signer, key.MarshalSSHPublicKey())
+	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(key.SSHPublicKey()))
 	return nil
 }
 

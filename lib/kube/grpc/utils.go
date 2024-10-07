@@ -20,21 +20,20 @@ package kubev1
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"net"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -64,17 +63,16 @@ func getWebAddrAndKubeSNI(proxyAddr string) (string, string, error) {
 
 // requestCertificate requests a short-lived certificate for the user using the
 // Kubernetes CA.
-func (s *Server) requestCertificate(ctx context.Context, username string, cluster string, identity tlsca.Identity) (*rest.Config, error) {
+func (s *Server) requestCertificate(username string, cluster string, identity tlsca.Identity) (*rest.Config, error) {
 	s.cfg.Log.Debugf("Requesting K8s cert for %v.", username)
-	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(s.cfg.AccessPoint),
-		cryptosuites.ProxyKubeClient)
+	keyPEM, _, err := native.GenerateKeyPair()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keyPEM, err := keys.MarshalPrivateKey(key)
+
+	privateKey, err := ssh.ParseRawPrivateKey(keyPEM)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to parse private key")
 	}
 
 	subject, err := identity.Subject()
@@ -84,7 +82,7 @@ func (s *Server) requestCertificate(ctx context.Context, username string, cluste
 	csr := &x509.CertificateRequest{
 		Subject: subject,
 	}
-	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, key)
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,6 +96,7 @@ func (s *Server) requestCertificate(ctx context.Context, username string, cluste
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &rest.Config{
 		Host: s.proxyAddress,
 		TLSClientConfig: rest.TLSClientConfig{
@@ -112,8 +111,8 @@ func (s *Server) requestCertificate(ctx context.Context, username string, cluste
 // newKubernetesClient creates a new Kubernetes client with short-lived user
 // certificates that include in the roles field the available search_as_role
 // roles.
-func (s *Server) newKubernetesClient(ctx context.Context, cluster string, identity tlsca.Identity) (kubernetes.Interface, error) {
-	cfg, err := s.requestCertificate(ctx, identity.Username, cluster, identity)
+func (s *Server) newKubernetesClient(cluster string, identity tlsca.Identity) (kubernetes.Interface, error) {
+	cfg, err := s.requestCertificate(identity.Username, cluster, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

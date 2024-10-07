@@ -29,7 +29,6 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // handleX11Forwarding handles X11 channel requests for the given server session.
@@ -199,7 +198,7 @@ func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Sess
 			}
 		}()
 
-		if err := utils.ProxyConn(ctx, xconn, xchan); err != nil {
+		if err := x11.Forward(ctx, xconn, xchan); err != nil {
 			log.WithError(err).Debug("Encountered error during X11 forwarding")
 		}
 	})

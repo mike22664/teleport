@@ -70,7 +70,7 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
       >
         <FeatureHeaderTitle>Active Sessions</FeatureHeaderTitle>
         {showActiveSessionsCTA && (
-          <Box>
+          <Box width="340px">
             <ButtonLockedFeature
               height="36px"
               event={CtaEvent.CTA_ACTIVE_SESSIONS}

@@ -162,7 +162,7 @@ export function NewMfaDeviceForm({
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="body2" color="text.main" mb={1}>
+          <Text typography="subtitle1" color="text.main" mb={1}>
             Multi-factor type
           </Text>
           <Box mb={3}>
@@ -186,7 +186,7 @@ export function NewMfaDeviceForm({
             {mfaType?.value === 'webauthn' && (
               <Box
                 border={1}
-                borderColor="interactive.tonal.neutral.2.background"
+                borderColor="interactive.tonal.neutral.2"
                 borderRadius={3}
                 p={3}
               >
@@ -214,7 +214,7 @@ export function NewMfaDeviceForm({
             {mfaType?.value === 'otp' && (
               <Flex
                 border={1}
-                borderColor="interactive.tonal.neutral.2.background"
+                borderColor="interactive.tonal.neutral.2"
                 borderRadius={3}
                 p={3}
                 gap={3}
@@ -265,7 +265,7 @@ export function NewMfaDeviceForm({
             onClick={e => onBtnClick(e, validator)}
           >
             {mfaType.value === 'webauthn' && !credential
-              ? 'Create an MFA Method'
+              ? 'Create an MFA method'
               : submitButtonText}
           </ButtonPrimary>
         </OnboardCard>

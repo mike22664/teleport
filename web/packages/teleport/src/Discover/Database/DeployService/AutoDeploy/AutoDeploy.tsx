@@ -35,8 +35,6 @@ import Validation, { Validator } from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { requiredIamRoleName } from 'shared/components/Validation/rules';
 
-import { P } from 'design/Text/Text';
-
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import {
@@ -170,9 +168,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
         // to get picked up by this service we deployed.
         // So setting the attempt here to "success"
         // is not necessary.
-        .then(url => {
-          setSvcDeployedAwsUrl(url);
-        })
+        .then(setSvcDeployedAwsUrl)
         .catch((err: Error) => {
           setAttempt({ status: 'failed', statusText: err.message });
           emitErrorEvent(`deploy request failed: ${err.message}`);
@@ -414,12 +410,12 @@ const CreateAccessRole = ({
 
   return (
     <StyledBox mb={5}>
-      <H3 mb={2}>Step 1</H3>
-      <P mb={2}>
+      <Text bold>Step 1</Text>
+      <Text mb={2}>
         Name an IAM role for the Teleport Database Service and generate a
         configuration command. The generated command will create the role and
         configure permissions for it in your AWS account.
-      </P>
+      </Text>
       <FieldInput
         mb={4}
         disabled={disabled}

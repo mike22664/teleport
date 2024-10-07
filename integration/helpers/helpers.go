@@ -20,7 +20,6 @@ package helpers
 
 import (
 	"context"
-	"crypto"
 	"fmt"
 	"net"
 	"os"
@@ -45,7 +44,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
@@ -54,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cloud/imds"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -141,14 +138,15 @@ func ExternalSSHCommand(o CommandOptions) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-// CreateAgent creates a SSH agent with the passed in key ring that can be used
-// in tests. This is useful so tests don't clobber your system agent.
-func CreateAgent(keyRing *client.KeyRing) (*teleagent.AgentServer, string, string, error) {
+// CreateAgent creates a SSH agent with the passed in private key and
+// certificate that can be used in tests. This is useful so tests don't
+// clobber your system agent.
+func CreateAgent(me *user.User, key *client.Key) (*teleagent.AgentServer, string, string, error) {
 	// create a path to the unix socket
 	sockDirName := "int-test"
 	sockName := "agent.sock"
 
-	agentKey, err := keyRing.AsAgentKey()
+	agentKey, err := key.AsAgentKey()
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
@@ -168,7 +166,7 @@ func CreateAgent(keyRing *client.KeyRing) (*teleagent.AgentServer, string, strin
 	})
 
 	// start the SSH agent
-	err = teleAgent.ListenUnixSocket(sockDirName, sockName, nil)
+	err = teleAgent.ListenUnixSocket(sockDirName, sockName, me)
 	if err != nil {
 		return nil, "", "", trace.Wrap(err)
 	}
@@ -191,27 +189,13 @@ func CloseAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	return nil
 }
 
-func MustCreateUserKeyRing(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.KeyRing {
-	sshKey, tlsKey, err := cryptosuites.GenerateUserSSHAndTLSKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
-		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
-	})
+func MustCreateUserKey(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) *client.Key {
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
-	return mustCreateUserKeyRingWithKeys(t, tc, username, ttl, sshKey, tlsKey)
-}
+	key.ClusterName = tc.Secrets.SiteName
 
-func mustCreateUserKeyRingWithKeys(t *testing.T, tc *TeleInstance, username string, ttl time.Duration, sshKey, tlsKey crypto.Signer) *client.KeyRing {
-	sshPriv, err := keys.NewSoftwarePrivateKey(sshKey)
-	require.NoError(t, err)
-	tlsPriv, err := keys.NewSoftwarePrivateKey(tlsKey)
-	require.NoError(t, err)
-	keyRing := client.NewKeyRing(sshPriv, tlsPriv)
-	keyRing.ClusterName = tc.Secrets.SiteName
-
-	tlsPub, err := keys.MarshalPublicKey(tlsKey.Public())
-	require.NoError(t, err)
 	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-		SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
-		TLSPubKey:      tlsPub,
+		Key:            key.MarshalSSHPublicKey(),
 		Username:       username,
 		TTL:            ttl,
 		Compatibility:  constants.CertificateFormatStandard,
@@ -219,28 +203,22 @@ func mustCreateUserKeyRingWithKeys(t *testing.T, tc *TeleInstance, username stri
 	})
 	require.NoError(t, err)
 
-	keyRing.Cert = sshCert
-	keyRing.TLSCert = tlsCert
+	key.Cert = sshCert
+	key.TLSCert = tlsCert
 
 	hostCAs, err := tc.Process.GetAuthServer().GetCertAuthorities(context.Background(), types.HostCA, false)
 	require.NoError(t, err)
-	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
-	return keyRing
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(hostCAs)
+	return key
 }
 
 func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
-	key, err := cryptosuites.GenerateKey(context.Background(), func(_ context.Context) (types.SignatureAlgorithmSuite, error) {
-		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1, nil
-	}, cryptosuites.UserTLS)
-	require.NoError(t, err)
-	// Identity files must use the same key for SSH and TLS.
-	sshKey, tlsKey := key, key
-	keyRing := mustCreateUserKeyRingWithKeys(t, tc, username, ttl, sshKey, tlsKey)
+	key := MustCreateUserKey(t, tc, username, ttl)
 
 	idPath := filepath.Join(t.TempDir(), "user_identity")
-	_, err = identityfile.Write(context.Background(), identityfile.WriteConfig{
+	_, err := identityfile.Write(context.Background(), identityfile.WriteConfig{
 		OutputPath: idPath,
-		KeyRing:    keyRing,
+		Key:        key,
 		Format:     identityfile.FormatFile,
 	})
 	require.NoError(t, err)

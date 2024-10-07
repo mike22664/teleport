@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -218,15 +217,15 @@ func createTCTLTerraformUserAndRole(t *testing.T, username string, instance *hel
 // For the tests, the client is configured to trust the proxy TLS certs on first connection.
 func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) *authclient.Client {
 	// Get TLS and SSH material
-	keyRing := helpers.MustCreateUserKeyRing(t, tc, username, ttl)
+	key := helpers.MustCreateUserKey(t, tc, username, ttl)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{tc.Config.Auth.ClusterName.GetClusterName()})
+	tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{tc.Config.Auth.ClusterName.GetClusterName()})
 	require.NoError(t, err)
 	tlsConfig.InsecureSkipVerify = true
 	proxyAddr, err := tc.Process.ProxyWebAddr()
 	require.NoError(t, err)
-	sshConfig, err := keyRing.ProxyClientSSHConfig(proxyAddr.Host())
+	sshConfig, err := key.ProxyClientSSHConfig(proxyAddr.Host())
 	require.NoError(t, err)
 
 	// Build auth client configuration
@@ -236,7 +235,7 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 		TLS:                  tlsConfig,
 		SSH:                  sshConfig,
 		AuthServers:          []utils.NetAddr{*authAddr},
-		Log:                  utils.NewSlogLoggerForTests(),
+		Log:                  utils.NewLoggerForTests(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
 		DialOpts:             nil,
@@ -259,9 +258,9 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          clientConfig.SSH,
-		Log:                   slog.Default(),
+		Log:                   clientConfig.Log,
 		InsecureSkipTLSVerify: clientConfig.Insecure,
-		GetClusterCAs:         client.ClusterCAsFromCertPool(clientConfig.TLS.RootCAs),
+		ClusterCAs:            clientConfig.TLS.RootCAs,
 	})
 	require.NoError(t, err)
 
@@ -277,10 +276,10 @@ func getAuthClientForProxy(t *testing.T, tc *helpers.TeleInstance, username stri
 // This client only has TLSConfig set (as opposed to TLSConfig+SSHConfig).
 func getAuthClientForAuth(t *testing.T, tc *helpers.TeleInstance, username string, ttl time.Duration) *authclient.Client {
 	// Get TLS and SSH material
-	keyRing := helpers.MustCreateUserKeyRing(t, tc, username, ttl)
+	key := helpers.MustCreateUserKey(t, tc, username, ttl)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{tc.Config.Auth.ClusterName.GetClusterName()})
+	tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{tc.Config.Auth.ClusterName.GetClusterName()})
 	require.NoError(t, err)
 
 	// Build auth client configuration
@@ -289,7 +288,7 @@ func getAuthClientForAuth(t *testing.T, tc *helpers.TeleInstance, username strin
 	clientConfig := &authclient.Config{
 		TLS:                  tlsConfig,
 		AuthServers:          []utils.NetAddr{*authAddr},
-		Log:                  utils.NewSlogLoggerForTests(),
+		Log:                  utils.NewLoggerForTests(),
 		CircuitBreakerConfig: breaker.Config{},
 		DialTimeout:          0,
 		DialOpts:             nil,

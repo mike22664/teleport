@@ -23,10 +23,7 @@ import { unique } from 'teleterm/ui/utils/uid';
 
 import { Notifications } from '.';
 
-import type {
-  NotificationItem,
-  NotificationSeverity,
-} from '@gravitational/shared/components/Notification';
+import type { NotificationItem } from '@gravitational/shared/components/Notification';
 
 export default {
   title: 'Teleterm/components/Notifications',
@@ -45,7 +42,7 @@ function useNotifications() {
 export const TitleAndDescriptionContent = () => {
   const { setItems, removeItem, items } = useNotifications();
 
-  function notify(severity: NotificationSeverity) {
+  function notify(severity: NotificationItem['severity']) {
     setItems(prevItems => [
       ...prevItems,
       {
@@ -79,7 +76,7 @@ export const TitleAndDescriptionContent = () => {
 export const StringContent = () => {
   const { setItems, removeItem, items } = useNotifications();
 
-  function notify(severity: NotificationSeverity) {
+  function notify(severity: NotificationItem['severity']) {
     setItems(prevItems => [
       ...prevItems,
       {

@@ -17,7 +17,8 @@
  */
 
 import React from 'react';
-import { Indicator, Box, Alert, Button, Link } from 'design';
+import { Indicator, Box, Alert, ButtonPrimary, Link, ButtonIcon } from 'design';
+import { Cross } from 'design/Icon';
 
 import {
   FeatureBox,
@@ -67,30 +68,18 @@ export function Users(props: State) {
         {attempt.isSuccess && (
           <>
             {!InviteCollaborators && (
-              <Button
-                intent="primary"
-                fill="border"
-                ml="auto"
-                width="240px"
-                onClick={onStartCreate}
-              >
+              <ButtonPrimary ml="auto" width="240px" onClick={onStartCreate}>
                 Create New User
-              </Button>
+              </ButtonPrimary>
             )}
             {InviteCollaborators && (
-              <Button
-                intent="primary"
-                fill="border"
+              <ButtonPrimary
                 ml="auto"
                 width="240px"
-                // TODO(bl-nero): There may be a bug here that used to be hidden
-                // by inadequate type checking; investigate and fix.
-                onClick={
-                  onStartInviteCollaborators as any as React.MouseEventHandler<HTMLButtonElement>
-                }
+                onClick={onStartInviteCollaborators}
               >
                 Enroll Users
-              </Button>
+              </ButtonPrimary>
             )}
           </>
         )}
@@ -101,37 +90,31 @@ export function Users(props: State) {
         </Box>
       )}
       {showMauInfo && (
-        <Alert
-          data-testid="users-not-mau-alert"
-          dismissible
-          onDismiss={onDismissUsersMauNotice}
-          kind="info"
-          css={`
-            a.external-link {
-              color: ${({ theme }) => theme.colors.buttons.link.default};
-            }
-          `}
-        >
-          The users displayed here are not an accurate reflection of Monthly
-          Active Users (MAU). For example, users who log in through Single
-          Sign-On (SSO) providers such as Okta may only appear here temporarily
-          and disappear once their sessions expire. For more information, read
-          our documentation on{' '}
-          <Link
-            target="_blank"
-            href="https://goteleport.com/docs/usage-billing/#monthly-active-users"
-            className="external-link"
+        <Alert data-testid="users-not-mau-alert" kind="info">
+          <Box>
+            The users displayed here are not an accurate reflection of Monthly
+            Active Users (MAU). For example, users who log in through Single
+            Sign-On (SSO) providers such as Okta may only appear here
+            temporarily and disappear once their sessions expire. For more
+            information, read our documentation on{' '}
+            <Link
+              target="_blank"
+              href="https://goteleport.com/docs/usage-billing/#monthly-active-users"
+            >
+              MAU
+            </Link>{' '}
+            and{' '}
+            <Link href="https://goteleport.com/docs/reference/user-types/">
+              User Types
+            </Link>
+            .
+          </Box>
+          <ButtonIcon
+            data-testid="dismiss-users-not-mau-alert"
+            onClick={onDismissUsersMauNotice}
           >
-            MAU
-          </Link>{' '}
-          and{' '}
-          <Link
-            href="https://goteleport.com/docs/reference/user-types/"
-            className="external-link"
-          >
-            User Types
-          </Link>
-          .
+            <Cross />
+          </ButtonIcon>
         </Alert>
       )}
       {attempt.isFailed && <Alert kind="danger" children={attempt.message} />}

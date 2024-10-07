@@ -21,13 +21,17 @@ package web
 import (
 	"bytes"
 	"context"
-	"crypto"
+	"crypto/sha1"
 	"crypto/tls"
+	"encoding/base64"
+	"encoding/pem"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -46,9 +50,11 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
 // GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>
@@ -92,7 +98,7 @@ func (h *Handler) createDesktopConnection(
 	ctx := r.Context()
 
 	sendTDPError := func(err error) error {
-		sendErr := sendTDPAlert(ws, err, tdp.SeverityError)
+		sendErr := sendTDPNotification(ws, err, tdp.SeverityError)
 		if sendErr != nil {
 			return sendErr
 		}
@@ -157,13 +163,13 @@ func (h *Handler) createDesktopConnection(
 	})
 
 	// Parse the private key of the user from the session context.
-	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetTLSPriv())
+	pk, err := keys.ParsePrivateKey(sctx.cfg.Session.GetPriv())
 	if err != nil {
 		return sendTDPError(err)
 	}
 
 	// Check if MFA is required and create a UserCertsRequest.
-	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk.Public(), desktopName, username)
+	mfaRequired, certsReq, err := h.prepareForCertIssuance(ctx, sctx, site, pk, desktopName, username)
 	if err != nil {
 		return sendTDPError(err)
 	}
@@ -246,23 +252,24 @@ const (
 
 func createUserCertsRequest(
 	sctx *SessionContext,
-	publicKey crypto.PublicKey,
+	pk *keys.PrivateKey,
 	desktopName,
 	username,
 	siteName string,
 ) (*proto.UserCertsRequest, error) {
-	tlsCert, err := sctx.GetX509Certificate()
-	if err != nil {
-		return nil, trace.Wrap(err)
+	key := &client.Key{
+		PrivateKey: pk,
+		Cert:       sctx.cfg.Session.GetPub(),
+		TLSCert:    sctx.cfg.Session.GetTLSCert(),
 	}
 
-	publicKeyPEM, err := keys.MarshalPublicKey(publicKey)
+	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	certsReq := proto.UserCertsRequest{
-		TLSPublicKey:   publicKeyPEM,
+		PublicKey:      key.MarshalSSHPublicKey(),
 		Username:       tlsCert.Subject.CommonName,
 		Expires:        tlsCert.NotAfter,
 		RouteToCluster: siteName,
@@ -282,7 +289,7 @@ func (h *Handler) prepareForCertIssuance(
 	ctx context.Context,
 	sctx *SessionContext,
 	site reversetunnelclient.RemoteSite,
-	publicKey crypto.PublicKey,
+	pk *keys.PrivateKey,
 	desktopName, username string,
 ) (mfaRequired bool, certsReq *proto.UserCertsRequest, err error) {
 	// Check if MFA is required for this user/desktop combination.
@@ -296,7 +303,7 @@ func (h *Handler) prepareForCertIssuance(
 		return false, nil, trace.Wrap(err)
 	}
 
-	certsReq, err = createUserCertsRequest(sctx, publicKey, desktopName, username, site.GetName())
+	certsReq, err = createUserCertsRequest(sctx, pk, desktopName, username, site.GetName())
 	if err != nil {
 		return false, nil, trace.Wrap(err)
 	}
@@ -439,7 +446,7 @@ func (h *Handler) performMFACeremony(
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
 		},
 		CertsReq: certsReq,
-		KeyRing:  nil, // We just want the certs.
+		Key:      nil, // We just want the certs.
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -553,7 +560,7 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 				if !isFatal {
 					severity = tdp.SeverityWarning
 				}
-				sendErr := sendTDPAlert(ws, err, severity)
+				sendErr := sendTDPNotification(ws, err, severity)
 
 				// If the error wasn't fatal and we successfully
 				// sent it back to the client, continue.
@@ -657,10 +664,99 @@ func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
 	log.WithError(proxyWsConnErr).Warning("Error proxying a desktop protocol websocket to windows_desktop_service")
 }
 
-// sendTDPAlert sends a tdp Notification over the supplied websocket with the
+// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
+// TODO(isaiah): Delete in v17.0.0.
+func (h *Handler) desktopAccessScriptConfigureHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	tokenStr := p.ByName("token")
+	if tokenStr == "" {
+		return "", trace.BadParameter("invalid token")
+	}
+
+	ctx := r.Context()
+
+	// verify that the token exists
+	token, err := h.GetProxyClient().GetToken(ctx, tokenStr)
+	if err != nil {
+		return "", trace.BadParameter("invalid token")
+	}
+
+	proxyServers, err := h.GetProxyClient().GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if len(proxyServers) == 0 {
+		return "", trace.NotFound("no proxy servers found")
+	}
+
+	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certAuthority, err := h.GetProxyClient().GetCertAuthority(
+		ctx,
+		types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
+		false,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(certAuthority.GetActiveKeys().TLS) != 1 {
+		return nil, trace.BadParameter("expected one TLS key pair, got %v", len(certAuthority.GetActiveKeys().TLS))
+	}
+
+	var internalResourceID string
+	for labelKey, labelValues := range token.GetSuggestedLabels() {
+		if labelKey == types.InternalResourceIDLabel {
+			internalResourceID = strings.Join(labelValues, " ")
+			break
+		}
+	}
+
+	keyPair := certAuthority.GetActiveKeys().TLS[0]
+	block, _ := pem.Decode(keyPair.Cert)
+	if block == nil {
+		return nil, trace.BadParameter("no PEM data in CA data")
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	w.WriteHeader(http.StatusOK)
+	err = scripts.DesktopAccessScriptConfigure.Execute(w, map[string]string{
+		"caCertPEM":          string(keyPair.Cert),
+		"caCertSHA1":         fmt.Sprintf("%X", sha1.Sum(block.Bytes)),
+		"caCertBase64":       base64.StdEncoding.EncodeToString(utils.CreateCertificateBLOB(block.Bytes)),
+		"proxyPublicAddr":    proxyServers[0].GetPublicAddr(),
+		"provisionToken":     tokenStr,
+		"internalResourceID": internalResourceID,
+	})
+
+	return nil, trace.Wrap(err)
+}
+
+// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
+// TODO(isaiah): Delete in v17.0.0.
+func (h *Handler) desktopAccessScriptInstallADDSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+	w.WriteHeader(http.StatusOK)
+	_, err := io.WriteString(w, scripts.DesktopAccessScriptInstallADDS)
+	return nil, trace.Wrap(err)
+}
+
+// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
+// TODO(isaiah): Delete in v17.0.0.
+func (h *Handler) desktopAccessScriptInstallADCSHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	httplib.SetScriptHeaders(w.Header())
+	w.WriteHeader(http.StatusOK)
+	_, err := io.WriteString(w, scripts.DesktopAccessScriptInstallADCS)
+	return nil, trace.Wrap(err)
+}
+
+// sendTDPNotification sends a tdp Notification over the supplied websocket with the
 // error message of err.
-func sendTDPAlert(ws *websocket.Conn, err error, severity tdp.Severity) error {
-	msg := tdp.Alert{Message: err.Error(), Severity: severity}
+func sendTDPNotification(ws *websocket.Conn, err error, severity tdp.Severity) error {
+	msg := tdp.Notification{Message: err.Error(), Severity: severity}
 	b, err := msg.Encode()
 	if err != nil {
 		return trace.Wrap(err)

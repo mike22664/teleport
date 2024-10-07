@@ -106,13 +106,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(nklaassen): support configurable keyRing algorithms.
-	keyRing, err := client.GenerateRSAKeyRing()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+	key, err := client.GenerateRSAKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,8 +122,7 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	}
 
 	certs, err := s.cfg.UserClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		SSHPublicKey:           keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
-		TLSPublicKey:           tlsPub,
+		PublicKey:              key.MarshalSSHPublicKey(),
 		Username:               currentUser.GetName(),
 		Expires:                time.Now().Add(time.Minute).UTC(),
 		ConnectionDiagnosticID: connectionDiagnosticID,
@@ -139,8 +132,8 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	keyRing.Cert = certs.SSH
-	keyRing.TLSCert = certs.TLS
+	key.Cert = certs.SSH
+	key.TLSCert = certs.TLS
 
 	certAuths, err := s.cfg.UserClient.GetCertAuthorities(ctx, types.HostCA, false /* loadKeys */)
 	if err != nil {
@@ -152,9 +145,9 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	keyRing.TrustedCerts = authclient.AuthoritiesToTrustedCerts(certAuths)
+	key.TrustedCerts = authclient.AuthoritiesToTrustedCerts(certAuths)
 
-	keyAuthMethod, err := keyRing.AsAuthMethod()
+	keyAuthMethod, err := key.AsAuthMethod()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -164,12 +157,12 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 		return nil, trace.Wrap(err)
 	}
 
-	clientConfTLS, err := keyRing.TeleportClientTLSConfig(nil, []string{clusterName.GetClusterName()})
+	clientConfTLS, err := key.TeleportClientTLSConfig(nil, []string{clusterName.GetClusterName()})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	keyRing.KeyRingIndex = client.KeyRingIndex{
+	key.KeyIndex = client.KeyIndex{
 		Username:    req.SSHPrincipal,
 		ProxyHost:   s.webProxyAddr,
 		ClusterName: clusterName.GetClusterName(),

@@ -35,10 +35,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -404,11 +402,6 @@ func (a *testAuth) GetAWSIAMCreds(ctx context.Context, database types.Database, 
 		"database_user", databaseUser,
 	)
 	return atlasAuthUser, atlasAuthToken, atlasAuthSessionToken, nil
-}
-
-func (a *testAuth) GenerateDatabaseClientKey(ctx context.Context) (*keys.PrivateKey, error) {
-	key, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
-	return key, trace.Wrap(err)
 }
 
 func (a *testAuth) WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) common.Auth {

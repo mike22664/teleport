@@ -21,7 +21,6 @@ package regular
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -33,7 +32,10 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1000,9 +1002,7 @@ func TestX11Forward(t *testing.T) {
 		MaxDisplay:    x11.DefaultMaxDisplays,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	ctx := context.Background()
 	roleName := services.RoleNameForUser(f.user)
 	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
 	require.NoError(t, err)
@@ -1022,28 +1022,79 @@ func TestX11Forward(t *testing.T) {
 
 	// Create multiple XServer requests, the server should
 	// handle multiple concurrent XServer requests.
-	errCh := make(chan error)
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		errCh <- x11EchoRequest(serverDisplay)
+		defer wg.Done()
+		x11EchoRequest(t, serverDisplay)
 	}()
+	wg.Add(1)
 	go func() {
-		errCh <- x11EchoRequest(serverDisplay)
+		defer wg.Done()
+		x11EchoRequest(t, serverDisplay)
 	}()
+	wg.Add(1)
 	go func() {
-		errCh <- x11EchoRequest(serverDisplay2)
+		defer wg.Done()
+		x11EchoRequest(t, serverDisplay2)
 	}()
+	wg.Add(1)
 	go func() {
-		errCh <- x11EchoRequest(serverDisplay2)
+		defer wg.Done()
+		x11EchoRequest(t, serverDisplay2)
 	}()
+	wg.Wait()
+}
 
-	for i := 0; i > 4; i++ {
-		select {
-		case err := <-errCh:
-			assert.NoError(t, err)
-		case <-ctx.Done():
-			assert.NoError(t, context.Cause(ctx))
-		}
+// TestRootX11ForwardPermissions tests that X11 forwarding sessions are set up
+// with the connecting user's file permissions (where needed), rather than root.
+func TestRootX11ForwardPermissions(t *testing.T) {
+	utils.RequireRoot(t)
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping test as xauth is not enabled")
 	}
+
+	t.Parallel()
+	f := newFixtureWithoutDiskBasedLogging(t)
+	f.ssh.srv.x11 = &x11.ServerConfig{
+		Enabled:       true,
+		DisplayOffset: x11.DefaultDisplayOffset,
+		MaxDisplay:    x11.DefaultMaxDisplays,
+	}
+
+	ctx := context.Background()
+	roleName := services.RoleNameForUser(f.user)
+	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
+	require.NoError(t, err)
+	roleOptions := role.GetOptions()
+	roleOptions.PermitX11Forwarding = types.NewBool(true)
+	role.SetOptions(roleOptions)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	// Create a new X11 session as a non-root nonroot in the system.
+	nonroot, err := user.LookupId("1000")
+	require.NoError(t, err)
+	client := f.newSSHClient(ctx, t, nonroot)
+	serverDisplay := x11EchoSession(ctx, t, client)
+
+	// Check that the xauth entry is readable for the connecting user.
+	xauthCmd := x11.NewXAuthCommand(ctx, "")
+	uid, err := strconv.ParseUint(nonroot.Uid, 10, 32)
+	require.NoError(t, err)
+	gid, err := strconv.ParseUint(nonroot.Gid, 10, 32)
+	require.NoError(t, err)
+	xauthCmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid: true,
+		Credential: &syscall.Credential{
+			Uid: uint32(uid),
+			Gid: uint32(gid),
+		},
+	}
+	xauthCmd.Dir = nonroot.HomeDir
+	xauthCmd.Env = []string{fmt.Sprintf("HOME=%v", nonroot.HomeDir)}
+	_, err = xauthCmd.ReadEntry(serverDisplay)
+	require.NoError(t, err)
 }
 
 // x11EchoSession creates a new ssh session and handles x11 forwarding for the session,
@@ -1065,7 +1116,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 				return
 			}
 			_, err = io.Copy(conn, conn)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			conn.Close()
 		}
 	}()
@@ -1075,13 +1126,13 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 	// and start x11 forwarding to the client display.
 	err = x11.ServeChannelRequests(ctx, clt.Client, func(ctx context.Context, nch ssh.NewChannel) {
 		sch, sin, err := nch.Accept()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer sch.Close()
 
 		clientConn, err := net.Dial("tcp", fakeClientDisplay.Addr().String())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		clientXConn, ok := clientConn.(*net.TCPConn)
-		assert.True(t, ok)
+		require.True(t, ok)
 		defer clientConn.Close()
 
 		go func() {
@@ -1091,8 +1142,8 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 			}
 		}()
 
-		err = utils.ProxyConn(ctx, clientXConn, sch)
-		assert.NoError(t, err)
+		err = x11.Forward(ctx, clientXConn, sch)
+		require.NoError(t, err)
 	})
 	require.NoError(t, err)
 
@@ -1134,7 +1185,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 			return true
 		}
 		return false
-	}, 10*time.Second, 100*time.Millisecond, "failed to read display")
+	}, 5*time.Second, 10*time.Millisecond, "failed to read display")
 
 	// Make a new connection to the XServer proxy, the client
 	// XServer should echo back anything written on it.
@@ -1146,30 +1197,20 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 // x11EchoRequest sends a message to the serverDisplay and expects the
 // server to echo the message back to it.
-func x11EchoRequest(serverDisplay x11.Display) error {
+func x11EchoRequest(t *testing.T, serverDisplay x11.Display) {
 	conn, err := serverDisplay.Dial()
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	defer conn.Close()
 
 	msg := "msg"
 	_, err = conn.Write([]byte(msg))
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
+	err = conn.CloseWrite()
+	require.NoError(t, err)
 
-	buf := make([]byte, 3)
-	_, err = conn.Read(buf)
-	if err != nil {
-		return err
-	}
-
-	if string(buf) != msg {
-		return trace.Errorf("x11 echo request returned a different message than expected")
-	}
-
-	return nil
+	echo, err := io.ReadAll(conn)
+	require.NoError(t, err)
+	require.Equal(t, msg, string(echo))
 }
 
 func TestAllowedUsers(t *testing.T) {
@@ -1450,10 +1491,8 @@ func TestProxyRoundRobin(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		GetClientTLSCertificate: func() (*tls.Certificate, error) {
-			return &proxyClient.TLSConfig().Certificates[0], nil
-		},
 		ClusterName:           f.testSrv.ClusterName(),
+		ClientTLS:             proxyClient.TLSConfig(),
 		ID:                    hostID,
 		Listener:              listener,
 		GetHostSigners:        sshutils.StaticHostSigners(f.signer),
@@ -1528,7 +1567,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Resolver:    resolver,
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
-		AuthMethods: []ssh.AuthMethod{ssh.PublicKeys(f.signer)},
+		HostSigner:  f.signer,
 		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
 		Cluster:     "remote",
 	})
@@ -1542,7 +1581,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		Resolver:    resolver,
 		Client:      proxyClient,
 		AccessPoint: proxyClient,
-		AuthMethods: []ssh.AuthMethod{ssh.PublicKeys(f.signer)},
+		HostSigner:  f.signer,
 		HostUUID:    fmt.Sprintf("%v.%v", hostID, f.testSrv.ClusterName()),
 		Cluster:     "remote",
 	})
@@ -1589,9 +1628,7 @@ func TestProxyDirectAccess(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		GetClientTLSCertificate: func() (*tls.Certificate, error) {
-			return &proxyClient.TLSConfig().Certificates[0], nil
-		},
+		ClientTLS:             proxyClient.TLSConfig(),
 		ID:                    hostID,
 		ClusterName:           f.testSrv.ClusterName(),
 		Listener:              listener,
@@ -2162,7 +2199,7 @@ func x11Handler(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewCha
 		return nil
 	}
 
-	if req.Type != x11.ForwardRequest {
+	if req.Type != sshutils.X11ForwardRequest {
 		return trace.BadParameter("Unexpected request type %q", req.Type)
 	}
 
@@ -2171,7 +2208,7 @@ func x11Handler(ctx context.Context, conn *ssh.ServerConn, chs <-chan ssh.NewCha
 	}
 
 	// start a fake X11 channel
-	xch, _, err := conn.OpenChannel(x11.ChannelRequest, nil)
+	xch, _, err := conn.OpenChannel(sshutils.X11ChannelRequest, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2304,9 +2341,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 		caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 		reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-			GetClientTLSCertificate: func() (*tls.Certificate, error) {
-				return &proxyClient.TLSConfig().Certificates[0], nil
-			},
+			ClientTLS:             proxyClient.TLSConfig(),
 			ID:                    hostID,
 			ClusterName:           f.testSrv.ClusterName(),
 			Listener:              listener,
@@ -2514,11 +2549,11 @@ func TestX11ProxySupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// register X11 channel handler before requesting forwarding to avoid races
-	xchs := clt.HandleChannelOpen(x11.ChannelRequest)
+	xchs := clt.HandleChannelOpen(sshutils.X11ChannelRequest)
 	require.NotNil(t, xchs)
 
 	// Send an X11 forwarding request to the server
-	ok, err = sess.SendRequest(ctx, x11.ForwardRequest, true, nil)
+	ok, err = sess.SendRequest(ctx, sshutils.X11ForwardRequest, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
 
@@ -2530,7 +2565,7 @@ func TestX11ProxySupport(t *testing.T) {
 		require.Fail(t, "Timeout waiting for X11 channel open from %v", node.addr)
 	}
 	require.NotNil(t, xnc)
-	require.Equal(t, x11.ChannelRequest, xnc.ChannelType())
+	require.Equal(t, sshutils.X11ChannelRequest, xnc.ChannelType())
 
 	xch, _, err := xnc.Accept()
 	require.NoError(t, err)
@@ -2568,9 +2603,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		GetClientTLSCertificate: func() (*tls.Certificate, error) {
-			return &proxyClient.TLSConfig().Certificates[0], nil
-		},
+		ClientTLS:             proxyClient.TLSConfig(),
 		ID:                    hostID,
 		ClusterName:           f.testSrv.ClusterName(),
 		Listener:              listener,
@@ -2989,10 +3022,8 @@ func TestHostUserCreationProxy(t *testing.T) {
 	caWatcher := newCertAuthorityWatcher(ctx, t, proxyClient)
 
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		GetClientTLSCertificate: func() (*tls.Certificate, error) {
-			return &proxyClient.TLSConfig().Certificates[0], nil
-		},
 		ClusterName:           f.testSrv.ClusterName(),
+		ClientTLS:             proxyClient.TLSConfig(),
 		ID:                    hostID,
 		Listener:              listener,
 		GetHostSigners:        sshutils.StaticHostSigners(f.signer),

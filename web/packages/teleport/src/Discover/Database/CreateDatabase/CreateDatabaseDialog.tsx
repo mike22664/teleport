@@ -23,7 +23,6 @@ import {
   AnimatedProgressBar,
   ButtonPrimary,
   ButtonSecondary,
-  H2,
   ButtonWarning,
 } from 'design';
 import * as Icons from 'design/Icon';
@@ -134,7 +133,9 @@ export function CreateDatabaseDialog({
         mb={0}
         textAlign="center"
       >
-        <H2 mb={4}>Database Register</H2>
+        <Text bold caps mb={4}>
+          Database Register
+        </Text>
         {content}
       </DialogContent>
     </Dialog>

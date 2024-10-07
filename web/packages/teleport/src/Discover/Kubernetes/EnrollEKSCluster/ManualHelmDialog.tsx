@@ -22,9 +22,8 @@ import {
   Flex,
   ButtonPrimary,
   ButtonSecondary,
+  Text,
   Indicator,
-  H2,
-  H3,
 } from 'design';
 
 import React, { Suspense, useState, useEffect } from 'react';
@@ -32,8 +31,6 @@ import React, { Suspense, useState, useEffect } from 'react';
 import styled from 'styled-components';
 
 import * as Icons from 'design/Icon';
-
-import { P } from 'design/Text/Text';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
@@ -83,7 +80,9 @@ const DialogWrapper = ({
   return (
     <Dialog onClose={cancel} open={true}>
       <DialogContent width="850px" mb={0}>
-        <H2 mb={4}>Manual EKS Cluster Enrollment</H2>
+        <Text bold caps mb={4}>
+          Manual EKS Cluster Enrollment
+        </Text>
         {children}
       </DialogContent>
       <DialogFooter alignItems="center" as={Flex} gap={4}>
@@ -143,8 +142,10 @@ export function ManualHelmDialog({
   return (
     <DialogWrapper cancel={cancel} next={confirmedCommands}>
       <StyledBox mb={5}>
-        <H3>Step 1</H3>
-        <P mb={3}>Add teleport-agent chart to your charts repository</P>
+        <Text bold>Step 1</Text>
+        <Text typography="subtitle1" mb={3}>
+          Add teleport-agent chart to your charts repository
+        </Text>
         <TextSelectCopyMulti
           lines={[
             {
@@ -156,12 +157,12 @@ export function ManualHelmDialog({
       <CommandBox
         header={
           <>
-            <H3>Step 2</H3>
-            <P mb={3}>
+            <Text bold>Step 2</Text>
+            <Text typography="subtitle1" mb={3}>
               Run the command below on the server your target EKS cluster is at.
               It may take up to a minute for the Teleport Service to join after
               running the command.
-            </P>
+            </Text>
           </>
         }
       >

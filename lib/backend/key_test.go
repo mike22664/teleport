@@ -473,10 +473,3 @@ func TestKeyCompare(t *testing.T) {
 		})
 	}
 }
-
-func TestKeyIsZero(t *testing.T) {
-	assert.True(t, backend.Key{}.IsZero())
-	assert.True(t, backend.NewKey().IsZero())
-	assert.False(t, backend.NewKey("a", "b").IsZero())
-	assert.False(t, backend.ExactKey("a", "b").IsZero())
-}

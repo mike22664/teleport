@@ -21,7 +21,11 @@ import styled from 'styled-components';
 import {
   alignSelf,
   AlignSelfProps,
+  borderColor,
+  BorderColorProps,
   BorderProps,
+  borderRadius,
+  BorderRadiusProps,
   borders,
   BordersProps,
   color,
@@ -68,7 +72,9 @@ export interface BoxProps
     JustifySelfProps,
     BorderProps,
     BordersProps,
-    OverflowProps {}
+    BorderRadiusProps,
+    OverflowProps,
+    BorderColorProps {}
 
 const Box = styled.div<BoxProps>`
   box-sizing: border-box;
@@ -86,7 +92,9 @@ const Box = styled.div<BoxProps>`
   ${alignSelf}
   ${justifySelf}
   ${borders}
+  ${borderRadius}
   ${overflow}
+  ${borderColor}
 `;
 
 Box.displayName = 'Box';

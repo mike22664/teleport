@@ -407,7 +407,7 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 		resp.Diagnostics.AddError("Unable to get Teleport server version!", "Unable to get Teleport server version!")
 		return false
 	}
-	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	if err != nil {
 		log.WithError(err).Debug("Teleport version check error!")
 		resp.Diagnostics.AddError("Teleport version check error!", err.Error())
@@ -502,6 +502,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_server":                     resourceTeleportServerType{},
 		"teleport_installer":                  resourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
+		"teleport_static_host_user":           resourceTeleportStaticHostUserType{},
 	}, nil
 }
 
@@ -527,6 +528,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_access_list":                dataSourceTeleportAccessListType{},
 		"teleport_installer":                  dataSourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
+		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
 	}, nil
 }
 

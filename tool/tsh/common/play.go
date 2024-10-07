@@ -1,20 +1,18 @@
-/*
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package common
 
@@ -115,9 +113,10 @@ func exportSession(cf *CLIConf) error {
 	}
 
 	switch format {
-	case teleport.JSON, teleport.YAML:
+	case teleport.JSON, teleport.YAML, teleport.Text:
 	default:
-		return trace.Errorf("Invalid format %s, only json and yaml are supported", format)
+		// this should be unreachable since kingpin validates the format flag
+		return trace.BadParameter("Invalid format %s", format)
 	}
 
 	sid, err := session.ParseID(cf.SessionID)
@@ -144,6 +143,8 @@ func exportSession(cf *CLIConf) error {
 		exporter = jsonSessionExporter{}
 	case teleport.YAML:
 		exporter = yamlSessionExporter{}
+	case teleport.Text:
+		exporter = textSessionExporter{}
 	}
 
 	exporter.WriteStart()
@@ -231,6 +232,22 @@ func (yamlSessionExporter) WriteEvent(evt apievents.AuditEvent) error {
 	}
 	_, err = os.Stdout.Write(b)
 	return err
+}
+
+type textSessionExporter struct{}
+
+func (textSessionExporter) WriteStart() error     { return nil }
+func (textSessionExporter) WriteEnd() error       { return nil }
+func (textSessionExporter) WriteSeparator() error { return nil }
+
+func (textSessionExporter) WriteEvent(evt apievents.AuditEvent) error {
+	printEvent, ok := evt.(*apievents.SessionPrint)
+	if !ok {
+		return nil
+	}
+
+	_, err := os.Stdout.Write(printEvent.Data)
+	return trace.Wrap(err)
 }
 
 // exportFile converts the binary protobuf events from the file

@@ -23,7 +23,7 @@ import Dialog, {
   DialogTitle,
   DialogContent,
 } from 'design/Dialog';
-import { Text, Box, ButtonSecondary, ButtonPrimary, Flex, H3 } from 'design';
+import { Text, Box, ButtonSecondary, ButtonPrimary, Flex } from 'design';
 
 import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import { AuthType } from 'teleport/services/user';
@@ -57,13 +57,13 @@ function ConnectDialog(props: Props) {
       open={true}
     >
       <DialogHeader>
-        <DialogTitle>Connect to Kubernetes Cluster</DialogTitle>
+        <DialogTitle>connect to kubernetes cluster</DialogTitle>
       </DialogHeader>
       <DialogContent>
         <Box mb={4}>
-          <H3 mt={1} mb={2}>
+          <Text mt={1} mb={2} bold>
             Connect in the CLI using tsh and kubectl
-          </H3>
+          </Text>
           <Text bold as="span">
             Step 1
           </Text>

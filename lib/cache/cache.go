@@ -184,12 +184,12 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindGlobalNotification},
 		{Kind: types.KindAccessMonitoringRule},
 		{Kind: types.KindDatabaseObject},
-		{Kind: types.KindAccessGraphSettings},
 		{Kind: types.KindSPIFFEFederation},
+		{Kind: types.KindAccessGraphSettings},
 		{Kind: types.KindStaticHostUser},
+		{Kind: types.KindUserTask},
 		{Kind: types.KindAutoUpdateVersion},
 		{Kind: types.KindAutoUpdateConfig},
-		{Kind: types.KindUserTask},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -242,9 +242,9 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
 		{Kind: types.KindKubeWaitingContainer},
+		{Kind: types.KindUserTask},
 		{Kind: types.KindAutoUpdateConfig},
 		{Kind: types.KindAutoUpdateVersion},
-		{Kind: types.KindUserTask},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg

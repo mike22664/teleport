@@ -40,18 +40,17 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -447,14 +446,10 @@ func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
 func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 	ctx := context.Background()
 
-	sshSigner, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
-	require.NoError(t, err)
-	sshKey, err := keys.NewSoftwarePrivateKey(sshSigner)
-	require.NoError(t, err)
-	sshKeyPEM, err := sshKey.MarshalSSHPrivateKey()
+	priv, pub, err := native.GenerateKeyPair()
 	require.NoError(t, err)
 
-	tlsKey, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
 	require.NoError(t, err)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
@@ -462,13 +457,13 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 		ClusterName: "clustername",
 		ActiveKeys: types.CAKeySet{
 			SSH: []*types.SSHKeyPair{{
-				PrivateKey:     sshKeyPEM,
+				PrivateKey:     priv,
 				PrivateKeyType: types.PrivateKeyType_RAW,
-				PublicKey:      sshKey.MarshalSSHPublicKey(),
+				PublicKey:      pub,
 			}},
 			TLS: []*types.TLSKeyPair{{
 				Cert: cert,
-				Key:  tlsKey,
+				Key:  key,
 			}},
 		},
 	})
@@ -999,7 +994,6 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 				Users: []string{types.Wildcard},
 				Roles: []string{types.Wildcard},
 			},
-			AppLabels: types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.Wildcard},
@@ -1028,7 +1022,6 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	mockMFAPromptConstructor := func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
 		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
-		promptCfg.WebauthnSupported = true
 		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
 	}
 
@@ -1086,7 +1079,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	localAdminClient, err := authclient.Connect(ctx, &authclient.Config{
 		TLS:         localAdminTLS,
 		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         utils.NewSlogLoggerForTests(),
+		Log:         utils.NewLoggerForTests(),
 	})
 	require.NoError(t, err)
 

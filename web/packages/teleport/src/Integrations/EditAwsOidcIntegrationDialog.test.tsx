@@ -45,7 +45,7 @@ test('user acknowledging script was ran when reconfiguring', async () => {
 
   // Initial state.
   expect(screen.queryByTestId('scriptbox')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
+  expect(screen.queryByTestId('checkbox')).not.toBeInTheDocument();
   expect(
     screen.queryByRole('button', { name: /reconfigure/i })
   ).not.toBeInTheDocument();
@@ -74,7 +74,7 @@ test('user acknowledging script was ran when reconfiguring', async () => {
   expect(
     screen.queryByRole('button', { name: /reconfigure/i })
   ).not.toBeInTheDocument();
-  expect(screen.getByLabelText(/I ran the command/i)).toBeInTheDocument();
+  expect(screen.getByTestId('checkbox')).toBeInTheDocument();
   expect(screen.getByTestId('scriptbox')).toBeInTheDocument();
 
   // Click on checkbox should enable save button and disable edit button.
@@ -119,7 +119,7 @@ test('render warning when s3 buckets are present', async () => {
 
   // Initial state.
   expect(screen.queryByTestId('scriptbox')).not.toBeInTheDocument();
-  expect(screen.queryByLabelText(/I ran the command/i)).not.toBeInTheDocument();
+  expect(screen.queryByTestId('checkbox')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
 
   // Check s3 related fields/warnings are rendered.
@@ -198,7 +198,7 @@ test('edit submit called with proper fields', async () => {
   await userEvent.click(screen.getByRole('button', { name: /reconfigure/i }));
   await screen.findByRole('button', { name: /edit/i });
 
-  await userEvent.click(screen.getByLabelText(/I ran the command/i));
+  await userEvent.click(screen.getByTestId('checkbox'));
   await waitFor(() =>
     expect(screen.getByRole('button', { name: /save/i })).toBeEnabled()
   );

@@ -19,7 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { ButtonSecondary, H2 } from 'design';
+import { Text, ButtonSecondary } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import Dialog, { DialogContent, DialogFooter } from 'design/DialogConfirmation';
 
@@ -32,8 +32,7 @@ export function SecurityGroupRulesDialog({
   viewRulesSelection: ViewRulesSelection;
   onClose: () => void;
 }) {
-  const { ruleType, sg } = viewRulesSelection;
-  const data = ruleType === 'inbound' ? sg.inboundRules : sg.outboundRules;
+  const { name, rules, ruleType } = viewRulesSelection;
 
   return (
     <Dialog disableEscapeKeyDown={false} open={true}>
@@ -43,12 +42,11 @@ export function SecurityGroupRulesDialog({
         mb={0}
         textAlign="center"
       >
-        <H2 mb={4}>
-          {ruleType === 'inbound' ? 'Inbound' : 'Outbound'} Rules for [{sg.name}
-          ]
-        </H2>
+        <Text mb={4} typography="h4">
+          {ruleType === 'inbound' ? 'Inbound' : 'Outbound'} Rules for [{name}]
+        </Text>
         <StyledTable
-          data={data}
+          data={rules}
           columns={[
             {
               key: 'ipProtocol',
@@ -67,12 +65,9 @@ export function SecurityGroupRulesDialog({
             {
               altKey: 'source',
               headerText: 'Source',
-              render: ({ cidrs }) => {
-                // The AWS API returns an array, however it appears it's not actually possible to have multiple CIDR's for a single rule.
-                // As a fallback we just display the first one.
-                const cidr = cidrs[0];
-                if (cidr) {
-                  return <Cell>{cidr.cidr}</Cell>;
+              render: ({ source }) => {
+                if (source) {
+                  return <Cell>{source}</Cell>;
                 }
                 return null;
               },
@@ -80,10 +75,9 @@ export function SecurityGroupRulesDialog({
             {
               altKey: 'description',
               headerText: 'Description',
-              render: ({ cidrs }) => {
-                const cidr = cidrs[0];
-                if (cidr) {
-                  return <Cell>{cidr.description}</Cell>;
+              render: ({ description }) => {
+                if (description) {
+                  return <Cell>{description}</Cell>;
                 }
                 return null;
               },

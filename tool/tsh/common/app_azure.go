@@ -78,7 +78,7 @@ type azureApp struct {
 
 // newAzureApp creates a new Azure app.
 func newAzureApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*azureApp, error) {
-	keyRing, err := tc.LocalAgent().GetCoreKeyRing()
+	key, err := tc.LocalAgent().GetCoreKey()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,7 +91,7 @@ func newAzureApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*azu
 	return &azureApp{
 		localProxyApp: newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify),
 		cf:            cf,
-		signer:        keyRing.TLSPrivateKey,
+		signer:        key.PrivateKey,
 		msiSecret:     msiSecret,
 	}, nil
 }

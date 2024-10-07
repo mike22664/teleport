@@ -25,7 +25,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"net"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,7 +35,6 @@ import (
 
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -50,6 +48,10 @@ type mockAuthClient struct {
 
 func (c mockAuthClient) GetProxies() ([]types.Server, error) {
 	return []types.Server{}, nil
+}
+
+type mockCAGetter struct {
+	authclient.CAGetter
 }
 
 type mockProxyAccessPoint struct {
@@ -141,14 +143,8 @@ func newSelfSignedCA(t *testing.T) *tlsca.CertAuthority {
 	return ca
 }
 
-func newAtomicCA(ca *tlsca.CertAuthority) *atomic.Pointer[tlsca.CertAuthority] {
-	a := new(atomic.Pointer[tlsca.CertAuthority])
-	a.Store(ca)
-	return a
-}
-
 // certFromIdentity creates a tls config for a given CA and identity.
-func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identity) tls.Certificate {
+func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identity) *tls.Config {
 	if ident.Username == "" {
 		ident.Username = "test-user"
 	}
@@ -166,7 +162,7 @@ func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identit
 		PublicKey: privateKey.Public(),
 		Subject:   subj,
 		NotAfter:  clock.Now().UTC().Add(time.Minute),
-		DNSNames:  []string{"127.0.0.1", apiutils.EncodeClusterName("test")},
+		DNSNames:  []string{"127.0.0.1"},
 	}
 	certBytes, err := ca.GenerateCertificate(request)
 	require.NoError(t, err)
@@ -175,31 +171,35 @@ func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identit
 	cert, err := tls.X509KeyPair(certBytes, keyPEM)
 	require.NoError(t, err)
 
-	return cert
+	config := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}
+
+	return config
 }
 
 // setupClients return a Client object.
-func setupClient(t *testing.T, clientCA *tlsca.CertAuthority, serverCA *atomic.Pointer[tlsca.CertAuthority], role types.SystemRole) *Client {
-	tlsCert := certFromIdentity(t, clientCA, tlsca.Identity{
+func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role types.SystemRole) *Client {
+	tlsConf := certFromIdentity(t, clientCA, tlsca.Identity{
 		Groups: []string{string(role)},
 	})
 
-	client, err := NewClient(ClientConfig{
-		ID:          "client-proxy",
-		AuthClient:  mockAuthClient{},
-		AccessPoint: &mockProxyAccessPoint{},
+	getConfigForServer := func() (*tls.Config, error) {
+		config := tlsConf.Clone()
+		rootCAs := x509.NewCertPool()
+		rootCAs.AddCert(serverCA.Cert)
+		config.RootCAs = rootCAs
+		return config, nil
+	}
 
-		GetTLSCertificate: func() (*tls.Certificate, error) {
-			return &tlsCert, nil
-		},
-		GetTLSRoots: func() (*x509.CertPool, error) {
-			pool := x509.NewCertPool()
-			ca := serverCA.Load()
-			pool.AddCert(ca.Cert)
-			return pool, nil
-		},
+	client, err := NewClient(ClientConfig{
+		ID:                      "client-proxy",
+		AuthClient:              mockAuthClient{},
+		AccessPoint:             &mockProxyAccessPoint{},
+		TLSConfig:               tlsConf,
 		Clock:                   clockwork.NewFakeClock(),
 		GracefulShutdownTimeout: time.Second,
+		getConfigForServer:      getConfigForServer,
 		sync:                    func() {},
 		connShuffler:            noopConnShuffler(),
 		ClusterName:             "test",
@@ -215,25 +215,31 @@ type serverTestOption func(*ServerConfig)
 
 // setupServer return a Server object.
 func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole, options ...serverTestOption) (*Server, types.Server) {
-	tlsCert := certFromIdentity(t, serverCA, tlsca.Identity{
+	tlsConf := certFromIdentity(t, serverCA, tlsca.Identity{
 		Username: name + ".test",
 		Groups:   []string{string(role)},
 	})
-	tlsConf := &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
+
+	getConfigForClient := func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
+		config := tlsConf.Clone()
+		config.ClientAuth = tls.RequireAndVerifyClientCert
+		clientCAs := x509.NewCertPool()
+		clientCAs.AddCert(clientCA.Cert)
+		config.ClientCAs = clientCAs
+		return config, nil
 	}
-	tlsConf.ClientCAs = x509.NewCertPool()
-	tlsConf.ClientCAs.AddCert(clientCA.Cert)
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	config := ServerConfig{
-		Listener:      listener,
-		TLSConfig:     tlsConf,
-		ClusterDialer: &mockClusterDialer{},
-		service:       &mockProxyService{},
-		ClusterName:   "test",
+		AccessCache:        &mockCAGetter{},
+		Listener:           listener,
+		TLSConfig:          tlsConf,
+		ClusterDialer:      &mockClusterDialer{},
+		getConfigForClient: getConfigForClient,
+		service:            &mockProxyService{},
+		ClusterName:        "test",
 	}
 	for _, option := range options {
 		option(&config)

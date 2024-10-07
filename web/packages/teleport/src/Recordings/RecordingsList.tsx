@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { ButtonPrimary } from 'design';
+import { ButtonBorder } from 'design';
 import Table, { Cell, TextCell } from 'design/DataTable';
 import { dateTimeMatcher } from 'design/utils/match';
 
@@ -141,7 +141,8 @@ const renderPlayCell = (
   );
   return (
     <Cell align="right">
-      <ButtonPrimary
+      <ButtonBorder
+        kind="primary"
         as="a"
         href={url}
         width="80px"
@@ -149,7 +150,7 @@ const renderPlayCell = (
         size="small"
       >
         Play
-      </ButtonPrimary>
+      </ButtonBorder>
     </Cell>
   );
 };

@@ -24,7 +24,7 @@ export default {
   title: 'Teleport/TrustedClusters/Delete',
 };
 
-export const Confirm = () => <DeleteTrustedCluster {...props} />;
+export const Comfirm = () => <DeleteTrustedCluster {...props} />;
 
 const props = {
   name: 'sample-trusted-cluster',

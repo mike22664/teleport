@@ -27,8 +27,6 @@ import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource'
 import cfg from 'teleport/config';
 import { findViewAtIndex } from 'teleport/components/Wizard/flow';
 
-import { DiscoverEvent } from 'teleport/services/userEvent';
-
 import { EViewConfigs } from './types';
 
 import {
@@ -37,8 +35,6 @@ import {
   DiscoverUpdateProps,
 } from './useDiscover';
 import { DiscoverIcon } from './SelectResource/icons';
-
-import type { View } from 'teleport/Discover/flow';
 
 function DiscoverContent() {
   const {
@@ -49,15 +45,12 @@ function DiscoverContent() {
     ...agentProps
   } = useDiscover();
 
-  let currentView: View | undefined;
-  let content: React.ReactNode;
-
+  let content;
   const hasSelectedResource = Boolean(viewConfig);
-
   if (hasSelectedResource) {
-    currentView = findViewAtIndex(indexedViews, currentStep);
+    const view = findViewAtIndex(indexedViews, currentStep);
 
-    const Component = currentView.component;
+    const Component = view.component;
 
     content = <Component {...agentProps} />;
 
@@ -65,8 +58,6 @@ function DiscoverContent() {
       content = viewConfig.wrapper(content);
     }
   } else {
-    currentView = undefined;
-
     content = (
       <SelectResource onSelect={resource => onSelectResource(resource)} />
     );
@@ -76,7 +67,7 @@ function DiscoverContent() {
     <>
       <FeatureBox>
         {hasSelectedResource && (
-          <Box mt={2} mb={6}>
+          <Box mt={2} mb={7}>
             <Navigation
               currentStep={currentStep}
               views={indexedViews}
@@ -98,18 +89,19 @@ function DiscoverContent() {
           }}
           when={
             viewConfig.shouldPrompt
-              ? viewConfig.shouldPrompt(
-                  currentStep,
-                  currentView,
-                  agentProps.resourceSpec
-                )
-              : currentView?.eventName !== DiscoverEvent.Completed
+              ? viewConfig.shouldPrompt(currentStep, agentProps.resourceSpec)
+              : true
           }
         />
       )}
     </>
   );
 }
+
+export type DiscoverComponentProps = {
+  eViewConfigs?: EViewConfigs;
+  updateFlow?: DiscoverUpdateProps;
+};
 
 export function DiscoverComponent({
   eViewConfigs = [],
@@ -130,8 +122,3 @@ export function DiscoverComponent({
 export function Discover() {
   return <DiscoverComponent />;
 }
-
-export type DiscoverComponentProps = {
-  eViewConfigs?: EViewConfigs;
-  updateFlow?: DiscoverUpdateProps;
-};

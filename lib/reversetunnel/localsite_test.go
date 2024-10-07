@@ -38,12 +38,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 
 	os.Exit(m.Run())
 }
@@ -83,6 +85,7 @@ func TestRemoteConnCleanup(t *testing.T) {
 	site, err := newLocalSite(srv, "clustername", nil,
 		withPeriodicFunctionInterval(time.Hour),
 		withProxySyncInterval(time.Hour),
+		withCertificateCache(&certificateCache{}),
 	)
 	require.NoError(t, err)
 
@@ -153,6 +156,7 @@ func TestLocalSiteOverlap(t *testing.T) {
 
 	site, err := newLocalSite(srv, "clustername", nil,
 		withPeriodicFunctionInterval(time.Hour),
+		withCertificateCache(&certificateCache{}),
 	)
 	require.NoError(t, err)
 
@@ -276,6 +280,7 @@ func TestProxyResync(t *testing.T) {
 	site, err := newLocalSite(srv, "clustername", nil,
 		withProxySyncInterval(time.Second),
 		withPeriodicFunctionInterval(24*time.Hour),
+		withCertificateCache(&certificateCache{}),
 	)
 	require.NoError(t, err)
 

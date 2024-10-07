@@ -24,8 +24,6 @@ import Dialog, {
   DialogHeader,
 } from 'design/Dialog';
 
-import { H2 } from 'design';
-
 import { CaptureEvent } from 'teleport/services/userEvent/types';
 import { userEventService } from 'teleport/services/userEvent';
 
@@ -67,7 +65,9 @@ export function OnboardDiscover({
         <Image src={resourcesPng} width="350px" height="218.97px" />
       </DialogHeader>
       <DialogContent textAlign="center">
-        <H2>Start by adding your first resource</H2>
+        <Text bold typography="h4">
+          Start by adding your first resource
+        </Text>
         <Text mt={3}>
           Teleport allows users to access a wide variety of resources, from
           Linux servers to Kubernetes clusters.
@@ -75,9 +75,9 @@ export function OnboardDiscover({
       </DialogContent>
       <DialogFooter>
         <ButtonPrimary width="100%" size="large" onClick={handleOnboard}>
-          Add my first resource
+          add my first resource
         </ButtonPrimary>
-        <ButtonText mt={2} width="100%" size="large" onClick={handleClose}>
+        <ButtonText pt={2} width="100%" size="large" onClick={handleClose}>
           I'll do that later
         </ButtonText>
       </DialogFooter>

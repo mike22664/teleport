@@ -33,7 +33,7 @@ import {
   DbType,
 } from 'shared/services/databases';
 
-import { Flex, ButtonPrimary, Text, Link, H1 } from 'design';
+import { Flex, ButtonPrimary, Text, Link } from 'design';
 
 import * as icons from 'design/Icon';
 import Image from 'design/Image';
@@ -553,7 +553,9 @@ function NoResources(props: {
   if (!props.canCreate) {
     $content = (
       <>
-        <H1 mb="2">No Resources Found</H1>
+        <Text typography="h3" mb="2" fontWeight={600}>
+          No Resources Found
+        </Text>
         <Text>
           Either there are no resources in the cluster, or your roles don't
           grant you access.
@@ -569,7 +571,9 @@ function NoResources(props: {
     $content = (
       <>
         <Image src={stack} ml="auto" mr="auto" mb={4} height="100px" />
-        <H1 mb={2}>Add your first resource to Teleport</H1>
+        <Text typography="h3" mb={2} fontWeight={600}>
+          Add your first resource to Teleport
+        </Text>
         <Text color="text.slightlyMuted">
           {props.canUseConnectMyComputer ? (
             <>

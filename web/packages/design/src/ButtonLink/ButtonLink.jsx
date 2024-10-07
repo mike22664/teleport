@@ -19,7 +19,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Button } from 'design/Button';
+import Button from './../Button/Button';
 
 function ButtonLink({ ...props }) {
   return <Button as={StyledButtonLink} {...props} />;
@@ -42,7 +42,6 @@ const StyledButtonLink = styled.a`
   &:hover,
   &:focus {
     color: ${({ theme }) => theme.colors.buttons.link.hover};
-    box-shadow: none;
   }
 
   &:active {

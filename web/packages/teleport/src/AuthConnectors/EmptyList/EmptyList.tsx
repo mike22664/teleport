@@ -17,11 +17,9 @@
  */
 
 import React from 'react';
-import { Card, Flex, H1, Text } from 'design';
+import { Card, Flex, Text } from 'design';
 import { GitHubIcon } from 'design/SVGIcon';
 import { AuthProviderType } from 'shared/services';
-
-import { H2 } from 'design';
 
 import { ConnectorBox } from 'teleport/AuthConnectors/styles/ConnectorBox.styles';
 
@@ -42,7 +40,9 @@ export default function EmptyList({ onCreate }: Props) {
       textAlign="center"
       style={{ boxShadow: 'none' }}
     >
-      <H1 textAlign="center">Select a service provider below</H1>
+      <Text typography="h3" textAlign="center">
+        Select a service provider below
+      </Text>
       <Flex flexWrap="wrap" justifyContent="center" mt={4} minWidth="224px">
         {renderGithubConnector(onCreate)}
         <LockedFeatureContainer>
@@ -66,7 +66,9 @@ function renderGithubConnector(onCreate) {
         </Flex>
       </Flex>
 
-      <H2 mt={4}>GitHub</H2>
+      <Text typography="body2" mt={4} fontSize="18px" color="text.primary" bold>
+        GitHub
+      </Text>
       {
         <Text mt={2} color="text.slightlyMuted">
           Sign in using your GitHub account
@@ -90,7 +92,9 @@ function renderLockedItem(kind: AuthProviderType) {
         />
       </Flex>
 
-      <H2 mt={4}>{desc}</H2>
+      <Text typography="body2" mt={4} fontSize={4} color="text.primary" bold>
+        {desc}
+      </Text>
       {info && (
         <Text mt={2} color="text.primary">
           {info}

@@ -69,6 +69,9 @@ type WebConfig struct {
 	// Eg, v13.4.3
 	// Only present when AutomaticUpgrades are enabled.
 	AutomaticUpgradesTargetVersion string `json:"automaticUpgradesTargetVersion,omitempty"`
+	// PlayableDatabaseProtocols is a list of database protocols which session
+	// recordings can be played.
+	PlayableDatabaseProtocols []string `json:"playable_db_protocols"`
 	// CustomTheme is a string that represents the name of the custom theme that the WebUI should use.
 	CustomTheme string `json:"customTheme"`
 	// Questionnaire indicates whether cluster users should get an onboarding questionnaire
@@ -79,9 +82,6 @@ type WebConfig struct {
 	PremiumSupport bool `json:"premiumSupport"`
 	// Edition is the edition of Teleport
 	Edition string `json:"edition"`
-	// PlayableDatabaseProtocols is a list of database protocols which session
-	// recordings can be played.
-	PlayableDatabaseProtocols []string `json:"playable_db_protocols"`
 	// entitlements define a customer’s access to a specific features
 	Entitlements map[string]EntitlementInfo `json:"entitlements,omitempty"`
 

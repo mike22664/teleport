@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Alert, Banner } from './Alert';
+import Alert from './Alert';
 import Box from './Box';
-import {
-  Button,
+import Button, {
   ButtonPrimary,
   ButtonWarning,
   ButtonSecondary,
@@ -66,17 +65,16 @@ import { Toggle } from './Toggle';
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
   Alert,
-  Banner,
   Box,
   Button,
-  ButtonBorder,
   ButtonIcon,
   ButtonLink,
+  ButtonBorder,
   ButtonPrimary,
   ButtonSecondary,
-  ButtonText,
   ButtonWarning,
   ButtonWithMenu,
+  ButtonText,
   Card,
   CardSuccess,
   CardSuccessLogin,
@@ -86,33 +84,33 @@ export {
   H2,
   H3,
   H4,
-  Image,
   Indicator,
   Input,
   Label,
   LabelInput,
   LabelState,
-  Link,
   Mark,
+  Link,
+  Pill,
+  Popover,
+  Image,
+  ResourceIcon,
+  SideNav,
+  SideNavItem,
+  StepSlider,
+  Text,
+  TopNav,
   Menu,
   MenuItem,
   MenuItemIcon,
   P1,
   P2,
   P3,
-  Pill,
-  Popover,
-  ResourceIcon,
-  SideNav,
-  SideNavItem,
-  StepSlider,
+  TextArea,
+  Toggle,
   Subtitle1,
   Subtitle2,
   Subtitle3,
-  Text,
-  TextArea,
-  Toggle,
-  TopNav,
 };
 export type { TextAreaProps } from './TextArea';
 export * from './keyframes';

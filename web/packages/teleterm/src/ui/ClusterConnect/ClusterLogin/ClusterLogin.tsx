@@ -18,7 +18,7 @@
 
 import React from 'react';
 import * as Alerts from 'design/Alert';
-import { ButtonIcon, Text, Indicator, Box, H2, ButtonPrimary } from 'design';
+import { ButtonIcon, Text, Indicator, Box } from 'design';
 import * as Icons from 'design/Icon';
 import { DialogHeader, DialogContent } from 'design/Dialog';
 import { PrimaryAuthType } from 'shared/services';
@@ -43,7 +43,6 @@ export type ClusterLoginPresentationProps = State & {
 export function ClusterLoginPresentation({
   title,
   initAttempt,
-  init,
   loginAttempt,
   clearLoginAttempt,
   onLoginWithLocal,
@@ -59,9 +58,9 @@ export function ClusterLoginPresentation({
   return (
     <>
       <DialogHeader px={4} pt={4} mb={0}>
-        <H2>
+        <Text typography="h4">
           Login to <b>{title}</b>
-        </H2>
+        </Text>
         <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
           <Icons.Cross size="medium" />
         </ButtonIcon>
@@ -70,12 +69,10 @@ export function ClusterLoginPresentation({
         {reason && <Reason reason={reason} />}
 
         {initAttempt.status === 'error' && (
-          <Box m={4}>
-            <Alerts.Danger details={initAttempt.statusText}>
-              Unable to retrieve cluster auth preferences
-            </Alerts.Danger>
-            <ButtonPrimary onClick={init}>Retry</ButtonPrimary>
-          </Box>
+          <Alerts.Danger m={4}>
+            Unable to retrieve cluster auth preferences,{' '}
+            {initAttempt.statusText}
+          </Alerts.Danger>
         )}
         {initAttempt.status === 'processing' && (
           <Box textAlign="center" m={4}>

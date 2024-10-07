@@ -24,8 +24,6 @@ import {
   Flex,
   ButtonSecondary,
   Mark,
-  H3,
-  Subtitle3,
 } from 'design';
 import styled from 'styled-components';
 import { Danger, Info } from 'design/Alert';
@@ -36,8 +34,6 @@ import { Rule } from 'shared/components/Validation/rules';
 import Validation, { Validator } from 'shared/components/Validation';
 import { makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
-
-import { P } from 'design/Text/Text';
 
 import cfg from 'teleport/config';
 import { useDiscover } from 'teleport/Discover/useDiscover';
@@ -195,14 +191,12 @@ export function DiscoveryConfigSsm() {
         <Danger mt={3}>{attempt.statusText}</Danger>
       )}
       <StyledBox mt={4}>
-        <header>
-          <H3>Step 1</H3>
-          <Subtitle3>
-            Select the AWS Region that contains the EC2 instances that you would
-            like to enroll
-          </Subtitle3>
-        </header>
+        <Text bold>Step 1</Text>
         <Box mb={-5}>
+          <Text typography="subtitle1">
+            Select the AWS Region that contains the EC2 instances that you would
+            like to enroll:
+          </Text>
           <AwsRegionSelector
             onFetch={(region: Regions) => setSelectedRegion(region)}
             clear={clear}
@@ -227,8 +221,8 @@ export function DiscoveryConfigSsm() {
       {showRestOfSteps && (
         <>
           <StyledBox mt={4}>
-            <H3>Step 2</H3>
-            <P>
+            <Text bold>Step 2</Text>
+            <Text typography="subtitle1">
               Attach AWS managed{' '}
               <ExternalLink
                 target="_blank"
@@ -238,28 +232,26 @@ export function DiscoveryConfigSsm() {
               </ExternalLink>{' '}
               policy to EC2 instances IAM profile. The policy enables EC2
               instances to use SSM core functionality.
-            </P>
+            </Text>
           </StyledBox>
           <StyledBox mt={4}>
-            <H3>Step 3</H3>
-            <P>
-              Each EC2 instance requires{' '}
-              <ExternalLink
-                target="_blank"
-                href="https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent-status-and-restart.html"
-              >
-                SSM Agent
-              </ExternalLink>{' '}
-              to be running. The SSM{' '}
-              <ExternalLink
-                target="_blank"
-                href={`https://${selectedRegion}.console.aws.amazon.com/systems-manager/fleet-manager/managed-nodes?region=${selectedRegion}`}
-              >
-                Nodes Manager dashboard
-              </ExternalLink>{' '}
-              will list all instances that have SSM agent already running.
-              Ensure ping statuses are <Mark>Online</Mark>.
-            </P>
+            <Text bold>Step 3</Text>
+            Each EC2 instance requires{' '}
+            <ExternalLink
+              target="_blank"
+              href="https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent-status-and-restart.html"
+            >
+              SSM Agent
+            </ExternalLink>{' '}
+            to be running. The SSM{' '}
+            <ExternalLink
+              target="_blank"
+              href={`https://${selectedRegion}.console.aws.amazon.com/systems-manager/fleet-manager/managed-nodes?region=${selectedRegion}`}
+            >
+              Nodes Manager dashboard
+            </ExternalLink>{' '}
+            will list all instances that have SSM agent already running. Ensure
+            ping statuses are <Mark>Online</Mark>.
             <Info mt={3} mb={0}>
               If you do not see your instances listed in the dashboard, it might
               take up to 30 minutes for your instances to use the IAM
@@ -270,9 +262,9 @@ export function DiscoveryConfigSsm() {
             {({ validator }) => (
               <form>
                 <StyledBox mt={4}>
-                  <H3>Step 4</H3>
+                  <Text bold>Step 4</Text>
                   <Box>
-                    <P mb={3}>
+                    <Text typography="subtitle1" mb={1}>
                       Give a name for the{' '}
                       <ExternalLink
                         target="_blank"
@@ -282,7 +274,7 @@ export function DiscoveryConfigSsm() {
                       </ExternalLink>{' '}
                       that will be created on your behalf. Required to run the
                       installer script on each discovered instances.
-                    </P>
+                    </Text>
                     <FieldInput
                       rule={requiredSsmDocument}
                       label="SSM Document Name"
@@ -305,9 +297,9 @@ export function DiscoveryConfigSsm() {
           </Validation>
           {scriptUrl && (
             <StyledBox mt={4}>
-              <H3>Step 5</H3>
+              <Text bold>Step 5</Text>
               <Flex alignItems="center" gap={1} mb={2}>
-                <P>
+                <Text typography="subtitle1">
                   Run the command below on your{' '}
                   <ExternalLink
                     href="https://console.aws.amazon.com/cloudshell/home"
@@ -316,7 +308,7 @@ export function DiscoveryConfigSsm() {
                     AWS CloudShell
                   </ExternalLink>{' '}
                   to configure your IAM permissions.
-                </P>
+                </Text>
                 <ToolTipInfo sticky={true} maxWidth={450}>
                   The following IAM permissions will be added as an inline
                   policy named <Mark>{IAM_POLICY_NAME}</Mark> to IAM role{' '}

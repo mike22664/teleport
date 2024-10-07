@@ -50,6 +50,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/httpstream"
+	httpstreamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
@@ -162,18 +163,10 @@ type ForwarderConfig struct {
 	TracerProvider oteltrace.TracerProvider
 	// Tracer is used to start spans.
 	tracer oteltrace.Tracer
-	// GetConnTLSCertificate returns the TLS client certificate to use when
-	// connecting to the upstream Teleport proxy or Kubernetes service when
-	// forwarding requests using the forward identity (i.e. proxy impersonating
-	// a user) method. Paired with GetConnTLSRoots and ConnTLSCipherSuites to
-	// generate the correct [*tls.Config] on demand.
-	GetConnTLSCertificate utils.GetCertificateFunc
-	// GetConnTLSRoots returns the [*x509.CertPool] used to validate TLS
-	// connections to the upstream Teleport proxy or Kubernetes service.
-	GetConnTLSRoots utils.GetRootsFunc
-	// ConnTLSCipherSuites optionally contains a list of TLS ciphersuites to use
-	// when connecting to the upstream Teleport Proxy or Kubernetes service.
-	ConnTLSCipherSuites []uint16
+	// ConnTLSConfig is the TLS client configuration to use when connecting to
+	// the upstream Teleport proxy or Kubernetes service when forwarding requests
+	// using the forward identity (i.e. proxy impersonating a user) method.
+	ConnTLSConfig *tls.Config
 	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 	// It is used to determine if the cluster is licensed for Kubernetes usage.
 	ClusterFeatures ClusterFeaturesGetter
@@ -255,12 +248,12 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	switch f.KubeServiceType {
 	case KubeService:
 	case ProxyService, LegacyProxyService:
-		if f.GetConnTLSCertificate == nil {
-			return trace.BadParameter("missing parameter GetConnTLSCertificate")
+		if f.ConnTLSConfig == nil {
+			return trace.BadParameter("missing parameter TLSConfig")
 		}
-		if f.GetConnTLSRoots == nil {
-			return trace.BadParameter("missing parameter GetConnTLSRoots")
-		}
+		// Reset the ServerName to ensure that the proxy does not use the
+		// proxy's hostname as the SNI when connecting to the Kubernetes service.
+		f.ConnTLSConfig.ServerName = ""
 	default:
 		return trace.BadParameter("unknown value for KubeServiceType")
 	}
@@ -1681,9 +1674,7 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 			}
 
 			f.setSession(session.id, session)
-			// When Teleport attaches the original session creator terminal streams to the
-			// session, we don't want to emit session.join event since it won't be required.
-			if err = session.join(party, false /* emitSessionJoinEvent */); err != nil {
+			if err = session.join(party, true /* emitSessionJoinEvent */); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -1816,10 +1807,14 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 // Go client uses SPDY while other clients still require WebSockets.
 // This function will run until the end of the execution of the request.
 func runPortForwarding(req portForwardRequest) error {
-	if wsstream.IsWebSocketRequest(req.httpRequest) {
+	switch {
+	case wsstream.IsWebSocketRequestWithTunnelingProtocol(req.httpRequest):
+		return trace.Wrap(runPortForwardingTunneledHTTPStreams(req))
+	case wsstream.IsWebSocketRequest(req.httpRequest):
 		return trace.Wrap(runPortForwardingWebSocket(req))
+	default:
+		return trace.Wrap(runPortForwardingHTTPStreams(req))
 	}
-	return trace.Wrap(runPortForwardingHTTPStreams(req))
 }
 
 const (
@@ -2109,9 +2104,8 @@ func isRelevantWebsocketError(err error) bool {
 func (f *Forwarder) getExecutor(sess *clusterSession, req *http.Request) (remotecommand.Executor, error) {
 	isWSSupported := false
 	if sess.noAuditEvents {
-		// We're forwarding it to another Teleport kube_service,
-		// which supports the websocket protocol.
-		isWSSupported = true
+		// We're forwarding it to another kube_service, check if it supports new protocol.
+		isWSSupported = f.allServersSupportExecSubprotocolV5(sess)
 	} else {
 		// We're accessing the Kubernetes cluster directly, check if it is version that supports new protocol.
 		f.rwMutexDetails.RLock()
@@ -2173,6 +2167,7 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (http
 		return nil, trace.Wrap(err)
 	}
 
+	req = createSPDYRequest(req, PortForwardProtocolV1Name)
 	upgradeRoundTripper := NewSpdyRoundTripperWithDialer(roundTripperConfig{
 		ctx:                   req.Context(),
 		sess:                  sess,
@@ -2196,6 +2191,27 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (http
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
+}
+
+// createSPDYRequest modifies the passed request to remove
+// WebSockets headers and add SPDY upgrade information, including
+// spdy protocols acceptable to the client.
+func createSPDYRequest(req *http.Request, spdyProtocols ...string) *http.Request {
+	clone := req.Clone(req.Context())
+	// Clean up the websocket headers from the http request.
+	clone.Header.Del(wsstream.WebSocketProtocolHeader)
+	clone.Header.Del("Sec-Websocket-Key")
+	clone.Header.Del("Sec-Websocket-Version")
+	clone.Header.Del(httpstream.HeaderUpgrade)
+	// Update the http request for an upstream SPDY upgrade.
+	clone.Method = "POST"
+	clone.Body = nil // Remove the request body which is unused.
+	clone.Header.Set(httpstream.HeaderUpgrade, httpstreamspdy.HeaderSpdy31)
+	clone.Header.Del(httpstream.HeaderProtocolVersion)
+	for i := range spdyProtocols {
+		clone.Header.Add(httpstream.HeaderProtocolVersion, spdyProtocols[i])
+	}
+	return clone
 }
 
 // clusterSession contains authenticated user session to the target cluster:

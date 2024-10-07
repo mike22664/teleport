@@ -934,21 +934,19 @@ func TestDiscoveryKubeServices(t *testing.T) {
 			})
 			go discServer.Start()
 
-			require.EventuallyWithT(t, func(t *assert.CollectT) {
+			require.Eventually(t, func() bool {
 				existingApps, err := tlsServer.Auth().GetApps(ctx)
-				if !assert.NoError(t, err) {
-					return
-				}
-				if !assert.Len(t, existingApps, len(tt.expectedAppsToExistInAuth)) {
-					return
+				if err != nil || len(existingApps) != len(tt.expectedAppsToExistInAuth) {
+					return false
 				}
 				a1 := types.Apps(existingApps)
 				a2 := types.Apps(tt.expectedAppsToExistInAuth)
 				for k := range a1 {
-					if !assert.Equal(t, services.Equal, services.CompareResources(a1[k], a2[k])) {
-						return
+					if services.CompareResources(a1[k], a2[k]) != services.Equal {
+						return false
 					}
 				}
+				return true
 			}, 5*time.Second, 200*time.Millisecond)
 		})
 	}
@@ -1564,14 +1562,18 @@ var eksMockClusters = []*eks.Cluster{
 func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := common.NewKubeClusterFromAWSEKS(aws.StringValue(eksCluster.Name), aws.StringValue(eksCluster.Arn), eksCluster.Tags)
 	require.NoError(t, err)
-	rewriteCloudResource(t, cluster, discoveryGroup, types.AWSMatcherEKS)
+	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	common.ApplyEKSNameSuffix(cluster)
+	cluster.SetOrigin(types.OriginCloud)
 	return cluster
 }
 
 func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := common.NewKubeClusterFromAzureAKS(azureCluster)
 	require.NoError(t, err)
-	rewriteCloudResource(t, cluster, discoveryGroup, types.AzureMatcherKubernetes)
+	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	common.ApplyAKSNameSuffix(cluster)
+	cluster.SetOrigin(types.OriginCloud)
 	return cluster
 }
 
@@ -1594,7 +1596,6 @@ func mustConvertKubeServiceToApp(t *testing.T, discoveryGroup, protocol string, 
 	require.NoError(t, err)
 	app.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	app.GetStaticLabels()[types.OriginLabel] = types.OriginDiscoveryKubernetes
-	app.GetStaticLabels()[types.DiscoveryTypeLabel] = types.KubernetesMatchersApp
 	return app
 }
 
@@ -1654,7 +1655,9 @@ var gkeMockClusters = []gcp.GKECluster{
 func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := common.NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
-	rewriteCloudResource(t, cluster, discoveryGroup, types.GCPMatcherKubernetes)
+	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	common.ApplyGKENameSuffix(cluster)
+	cluster.SetOrigin(types.OriginCloud)
 	return cluster
 }
 
@@ -2209,7 +2212,11 @@ func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (
 	}
 	database, err := common.NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
-	rewriteCloudResource(t, database, discoveryGroup, types.AWSMatcherRDS)
+	database.SetOrigin(types.OriginCloud)
+	staticLabels := database.GetStaticLabels()
+	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	database.SetStaticLabels(staticLabels)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRDS)
 	return instance, database
 }
 
@@ -2227,7 +2234,11 @@ func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup strin
 
 	database, err := common.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
-	rewriteCloudResource(t, database, discoveryGroup, types.AWSMatcherRedshift)
+	database.SetOrigin(types.OriginCloud)
+	staticLabels := database.GetStaticLabels()
+	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	database.SetStaticLabels(staticLabels)
+	common.ApplyAWSDatabaseNameSuffix(database, types.AWSMatcherRedshift)
 	return cluster, database
 }
 
@@ -2246,7 +2257,11 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 
 	database, err := common.NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
-	rewriteCloudResource(t, database, discoveryGroup, types.AzureMatcherRedis)
+	database.SetOrigin(types.OriginCloud)
+	staticLabels := database.GetStaticLabels()
+	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	database.SetStaticLabels(staticLabels)
+	common.ApplyAzureDatabaseNameSuffix(database, types.AzureMatcherRedis)
 	return resourceInfo, database
 }
 
@@ -3132,45 +3147,4 @@ func (m fakeWatcher) Close() error {
 
 func (m fakeWatcher) Error() error {
 	return nil
-}
-
-// rewriteCloudResource is a test helper func that rewrites an expected cloud
-// resource to include all the metadata we expect to be added by discovery.
-func rewriteCloudResource(t *testing.T, r types.ResourceWithLabels, discoveryGroup, matcherType string) {
-	r.SetOrigin(types.OriginCloud)
-	staticLabels := r.GetStaticLabels()
-	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-	staticLabels[types.DiscoveryTypeLabel] = matcherType
-	r.SetStaticLabels(staticLabels)
-
-	switch r := r.(type) {
-	case types.Database:
-		cloudLabel, ok := r.GetLabel(types.CloudLabel)
-		require.True(t, ok, "cloud resources should have a label identifying the cloud they came from")
-		switch cloudLabel {
-		case types.CloudAWS:
-			common.ApplyAWSDatabaseNameSuffix(r, matcherType)
-		case types.CloudAzure:
-			common.ApplyAzureDatabaseNameSuffix(r, matcherType)
-		case types.CloudGCP:
-			require.FailNow(t, "GCP database discovery is not supported", cloudLabel)
-		default:
-			require.FailNow(t, "unknown cloud label %q", cloudLabel)
-		}
-	case types.KubeCluster:
-		cloudLabel, ok := r.GetLabel(types.CloudLabel)
-		require.True(t, ok, "cloud resources should have a label identifying the cloud they came from")
-		switch cloudLabel {
-		case types.CloudAWS:
-			common.ApplyEKSNameSuffix(r)
-		case types.CloudAzure:
-			common.ApplyAKSNameSuffix(r)
-		case types.CloudGCP:
-			common.ApplyGKENameSuffix(r)
-		default:
-			require.FailNow(t, "unknown cloud label %q", cloudLabel)
-		}
-	default:
-		require.FailNow(t, "unknown cloud resource type %T", r)
-	}
 }

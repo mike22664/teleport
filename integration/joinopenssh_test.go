@@ -103,7 +103,7 @@ func TestJoinOpenSSH(t *testing.T) {
 	}, openSSHCfg)
 	require.NoError(t, err)
 
-	err = service.RunWithSignalChannel(ctx, *openSSHCfg, nil, nil)
+	err = service.Run(ctx, *openSSHCfg, nil)
 	require.NoError(t, err)
 
 	client := rc.GetSiteAPI(rc.Secrets.SiteName)

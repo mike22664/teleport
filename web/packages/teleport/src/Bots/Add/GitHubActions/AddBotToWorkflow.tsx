@@ -19,11 +19,9 @@
 import React from 'react';
 
 import Box from 'design/Box';
-import { Text } from 'design';
+import Text from 'design/Text';
 import TextEditor from 'shared/components/TextEditor';
 import Flex from 'design/Flex';
-
-import { H2 } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
 
@@ -47,7 +45,9 @@ export function AddBotToWorkflow({ prevStep, nextStep }: FlowStepProps) {
 
   return (
     <Box mb="0">
-      <H2 mb="3">Step 3: Connect Your Bot in a GitHub Actions Workflow</H2>
+      <Text bold fontSize={4} mb="3">
+        Step 3: Connect Your Bot in a GitHub Actions Workflow
+      </Text>
       <Text fontSize={3} mb="3">
         Teleport has created a role, a bot, and a join token. Below is an
         example GitHub Actions workflow to help you get started. You can find

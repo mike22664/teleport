@@ -256,13 +256,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		// the instance requires SSL. Also use a TLS dialer instead of
 		// the default net dialer when GCP requires SSL.
 		if requireSSL {
-			err = cloud.AppendGCPClientCert(ctx, &cloud.AppendGCPClientCertRequest{
-				GCPClient:   gcpClient,
-				GenerateKey: e.Auth.GenerateDatabaseClientKey,
-				Expiry:      sessionCtx.GetExpiry(),
-				Database:    sessionCtx.Database,
-				TLSConfig:   tlsConfig,
-			})
+			err = cloud.AppendGCPClientCert(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, gcpClient, tlsConfig)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

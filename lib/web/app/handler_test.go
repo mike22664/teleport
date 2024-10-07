@@ -21,7 +21,6 @@ package app
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -47,7 +46,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -638,11 +637,10 @@ func (r *fakeRemoteListener) Addr() net.Addr {
 // createAppSession generates a WebSession for an application.
 func createAppSession(t *testing.T, clock clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) types.WebSession {
 	key, cert := createAppKeyCertPair(t, clock, caKey, caCert, clusterName, publicAddr)
-	keyPEM, err := keys.MarshalPrivateKey(key)
-	require.NoError(t, err)
 	appSession, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
 		User:        "testuser",
-		TLSPriv:     keyPEM,
+		Priv:        key.PrivateKeyPEM(),
+		Pub:         key.MarshalSSHPublicKey(),
 		TLSCert:     cert,
 		Expires:     clock.Now().Add(5 * time.Minute),
 		BearerToken: "abc123",
@@ -653,11 +651,11 @@ func createAppSession(t *testing.T, clock clockwork.FakeClock, caKey, caCert []b
 }
 
 // createAppKeyCertPair creates and a client key and signed app cert for the client key
-func createAppKeyCertPair(t *testing.T, clock clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) (crypto.Signer, []byte) {
+func createAppKeyCertPair(t *testing.T, clock clockwork.FakeClock, caKey, caCert []byte, clusterName, publicAddr string) (*keys.PrivateKey, []byte) {
 	tlsCA, err := tlsca.FromKeys(caCert, caKey)
 	require.NoError(t, err)
 
-	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	privateKey, err := native.GeneratePrivateKey()
 	require.NoError(t, err)
 
 	// Generate the identity with a `RouteToApp` option.

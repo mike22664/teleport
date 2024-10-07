@@ -59,7 +59,7 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 		types.KindAppServer,
 		types.KindKubeServer,
 		types.KindWindowsDesktop,
-		types.KindSAMLIdPServiceProvider,
+		types.KindAppOrSAMLIdPServiceProvider,
 	}
 
 	for _, kind := range resourceKinds {

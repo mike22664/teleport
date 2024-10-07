@@ -303,14 +303,14 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 		return trace.Wrap(err)
 	}
 
-	var keyRing *client.KeyRing
+	var key *client.Key
 	// Identity files themselves act as the database credentials (if any), so
 	// don't bother fetching new certs.
 	if profile.IsVirtual {
 		log.Info("Note: already logged in due to an identity file (`-i ...`); will only update database config files.")
 	} else {
 		if err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			keyRing, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+			key, err = tc.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
 				RouteToCluster: tc.SiteName,
 				RouteToDatabase: proto.RouteToDatabase{
 					ServiceName: dbInfo.ServiceName,
@@ -326,16 +326,16 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo)
 			return trace.Wrap(err)
 		}
 
-		if err = tc.LocalAgent().AddDatabaseKeyRing(keyRing); err != nil {
+		if err = tc.LocalAgent().AddDatabaseKey(key); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	if dbInfo.Protocol == defaults.ProtocolOracle {
-		if err := generateDBLocalProxyCert(keyRing.TLSPrivateKey, profile); err != nil {
+		if err := generateDBLocalProxyCert(key, profile); err != nil {
 			return trace.Wrap(err)
 		}
-		err = oracle.GenerateClientConfiguration(keyRing.TLSPrivateKey, dbInfo.RouteToDatabase, profile)
+		err = oracle.GenerateClientConfiguration(key, dbInfo.RouteToDatabase, profile)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -551,7 +551,7 @@ func onDatabaseConfig(cf *CLIConf) error {
 			database.ServiceName, host, port, database.Username,
 			database.Database, profile.CACertPathForCluster(rootCluster),
 			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
-			profile.DatabaseKeyPathForCluster(tc.SiteName, database.ServiceName),
+			profile.KeyPath(),
 		}
 		out, err := serializeDatabaseConfig(configInfo, format)
 		if err != nil {
@@ -570,9 +570,7 @@ Key:       %v
 `,
 			database.ServiceName, host, port, database.Username,
 			database.Database, profile.CACertPathForCluster(rootCluster),
-			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName),
-			profile.DatabaseKeyPathForCluster(tc.SiteName, database.ServiceName),
-		)
+			profile.DatabaseCertPathForCluster(tc.SiteName, database.ServiceName), profile.KeyPath())
 	}
 	return nil
 }
@@ -681,7 +679,7 @@ func createLocalProxyListener(addr string, route tlsca.RouteToDatabase, profile 
 	if route.Protocol == defaults.ProtocolOracle {
 		localCert, err := tls.LoadX509KeyPair(
 			profile.DatabaseLocalCAPath(),
-			profile.TLSKeyPath(),
+			profile.KeyPath(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)

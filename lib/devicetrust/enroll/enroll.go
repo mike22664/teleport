@@ -20,8 +20,6 @@ package enroll
 
 import (
 	"context"
-	"errors"
-	"io"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -184,10 +182,7 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 		Payload: &devicepb.EnrollDeviceRequest_Init{
 			Init: init,
 		},
-	}); err != nil && !errors.Is(err, io.EOF) {
-		// [io.EOF] indicates that the server has closed the stream.
-		// The client should handle the underlying error on the subsequent Recv call.
-		// All other errors are client-side errors and should be returned.
+	}); err != nil {
 		return nil, trace.Wrap(devicetrust.HandleUnimplemented(err))
 	}
 	resp, err := stream.Recv()
@@ -241,13 +236,7 @@ func (c *Ceremony) enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDe
 			},
 		},
 	})
-	if err != nil && !errors.Is(err, io.EOF) {
-		// [io.EOF] indicates that the server has closed the stream.
-		// The client should handle the underlying error on the subsequent Recv call.
-		// All other errors are client-side errors and should be returned.
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(err)
 }
 
 func (c *Ceremony) enrollDeviceTPM(ctx context.Context, stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse, debug bool) error {
@@ -270,11 +259,5 @@ func (c *Ceremony) enrollDeviceTPM(ctx context.Context, stream devicepb.DeviceTr
 			TpmChallengeResponse: challengeResponse,
 		},
 	})
-	// [io.EOF] indicates that the server has closed the stream.
-	// The client should handle the underlying error on the subsequent Recv call.
-	// All other errors are client-side errors and should be returned.
-	if err != nil && !errors.Is(err, io.EOF) {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(err)
 }

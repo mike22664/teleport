@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ServerWithRoles is a wrapper around auth service
@@ -1306,6 +1307,10 @@ func (c *resourceAccess) checkAccess(resource types.ResourceWithLabels, filter s
 		return false, nil
 	}
 
+	if resourceKind == types.KindSAMLIdPServiceProvider {
+		return true, nil
+	}
+
 	// check access normally if base checker doesnt exist
 	if c.baseAuthChecker == nil {
 		if err := c.accessChecker.CanAccess(resource); err != nil {
@@ -1491,13 +1496,6 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				logins, err := checker.GetAllowedLoginsForResource(d)
 				if err != nil {
 					log.WithError(err).WithField("resource", d.GetName()).Warn("Unable to determine logins for desktop")
-					continue
-				}
-				r.Logins = logins
-			} else if d := r.GetAppServer(); d != nil {
-				logins, err := checker.GetAllowedLoginsForResource(d.GetApp())
-				if err != nil {
-					log.WithError(err).WithField("resource", d.GetApp().GetName()).Warn("Unable to determine logins for app")
 					continue
 				}
 				r.Logins = logins
@@ -1775,12 +1773,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 			return trace.Wrap(err)
 		case match:
 			if req.IncludeLogins {
-				var checkableResource services.AccessCheckable = resource
-				if appServer, ok := resource.(types.AppServer); ok {
-					checkableResource = appServer.GetApp()
-				}
-
-				logins, err := resourceChecker.GetAllowedLoginsForResource(checkableResource)
+				logins, err := resourceChecker.GetAllowedLoginsForResource(resource)
 				if err != nil {
 					log.WithError(err).WithField("resource", resource.GetName()).Warn("Unable to determine logins for resource")
 				}
@@ -1927,7 +1920,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 				var serviceProviders []types.SAMLIdPServiceProvider
 				var startKey string
 				for {
-					sps, nextKey, err := a.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
+					sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, int(req.Limit), startKey)
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
@@ -2031,26 +2024,21 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		SearchKeywords: req.SearchKeywords,
 		StartKey:       req.StartKey,
 		EnrichResourceFn: func(r types.ResourceWithLabels) (types.ResourceWithLabels, error) {
-			if !req.IncludeLogins && (r.GetKind() != types.KindNode || r.GetKind() != types.KindWindowsDesktop || r.GetKind() != types.KindAppServer) {
-				return r, nil
+			if req.IncludeLogins && (r.GetKind() == types.KindNode || r.GetKind() == types.KindWindowsDesktop) {
+				resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				logins, err := resourceChecker.GetAllowedLoginsForResource(r)
+				if err != nil {
+					log.WithError(err).WithField("resource", r.GetName()).Warn("Unable to determine logins for resource")
+				}
+
+				return &types.EnrichedResource{ResourceWithLabels: r, Logins: logins}, nil
 			}
 
-			resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			var checkableResource services.AccessCheckable = r
-			if appServer, ok := r.(types.AppServer); ok {
-				checkableResource = appServer.GetApp()
-			}
-
-			logins, err := resourceChecker.GetAllowedLoginsForResource(checkableResource)
-			if err != nil {
-				log.WithError(err).WithField("resource", r.GetName()).Warn("Unable to determine logins for resource")
-			}
-
-			return &types.EnrichedResource{ResourceWithLabels: r, Logins: logins}, nil
+			return r, nil
 		},
 	}
 
@@ -3272,48 +3260,31 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		}
 	}
 
-	sshPublicKey, tlsPublicKey, err := authclient.UserPublicKeys(
-		req.PublicKey, //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		req.SSHPublicKey,
-		req.TLSPublicKey,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshAttestationStatement, tlsAttestationStatement := authclient.UserAttestationStatements(
-		keys.AttestationStatementFromProto(req.AttestationStatement), //nolint:staticcheck // SA1019. Checking deprecated field that may be sent by older clients.
-		keys.AttestationStatementFromProto(req.SSHPublicKeyAttestationStatement),
-		keys.AttestationStatementFromProto(req.TLSPublicKeyAttestationStatement),
-	)
-
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
-		mfaVerified:                      verifiedMFADeviceID,
-		user:                             user,
-		ttl:                              req.Expires.Sub(a.authServer.GetClock().Now()),
-		compatibility:                    req.Format,
-		sshPublicKey:                     sshPublicKey,
-		tlsPublicKey:                     tlsPublicKey,
-		sshPublicKeyAttestationStatement: sshAttestationStatement,
-		tlsPublicKeyAttestationStatement: tlsAttestationStatement,
-		overrideRoleTTL:                  a.hasBuiltinRole(types.RoleAdmin),
-		routeToCluster:                   req.RouteToCluster,
-		kubernetesCluster:                req.KubernetesCluster,
-		dbService:                        req.RouteToDatabase.ServiceName,
-		dbProtocol:                       req.RouteToDatabase.Protocol,
-		dbUser:                           req.RouteToDatabase.Username,
-		dbName:                           req.RouteToDatabase.Database,
-		dbRoles:                          req.RouteToDatabase.Roles,
-		appSessionID:                     appSessionID,
-		appName:                          req.RouteToApp.Name,
-		appPublicAddr:                    req.RouteToApp.PublicAddr,
-		appURI:                           req.RouteToApp.URI,
-		appClusterName:                   req.RouteToApp.ClusterName,
-		awsRoleARN:                       req.RouteToApp.AWSRoleARN,
-		azureIdentity:                    req.RouteToApp.AzureIdentity,
-		gcpServiceAccount:                req.RouteToApp.GCPServiceAccount,
-		checker:                          checker,
+		mfaVerified:       verifiedMFADeviceID,
+		user:              user,
+		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
+		compatibility:     req.Format,
+		publicKey:         req.PublicKey,
+		overrideRoleTTL:   a.hasBuiltinRole(types.RoleAdmin),
+		routeToCluster:    req.RouteToCluster,
+		kubernetesCluster: req.KubernetesCluster,
+		dbService:         req.RouteToDatabase.ServiceName,
+		dbProtocol:        req.RouteToDatabase.Protocol,
+		dbUser:            req.RouteToDatabase.Username,
+		dbName:            req.RouteToDatabase.Database,
+		dbRoles:           req.RouteToDatabase.Roles,
+		appSessionID:      appSessionID,
+		appName:           req.RouteToApp.Name,
+		appPublicAddr:     req.RouteToApp.PublicAddr,
+		appURI:            req.RouteToApp.URI,
+		appClusterName:    req.RouteToApp.ClusterName,
+		awsRoleARN:        req.RouteToApp.AWSRoleARN,
+		azureIdentity:     req.RouteToApp.AzureIdentity,
+		gcpServiceAccount: req.RouteToApp.GCPServiceAccount,
+		checker:           checker,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
 		loginIP: a.context.Identity.GetIdentity().LoginIP,
@@ -3322,6 +3293,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
+		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 		botName:                getBotName(user),
 
 		// Always pass through a bot instance ID if available. Legacy bots
@@ -5161,6 +5133,60 @@ func (a *ServerWithRoles) DeleteAllTunnelConnections() error {
 	return a.authServer.DeleteAllTunnelConnections()
 }
 
+// Deprecated: use [presencev1.PresenceService.GetRemoteCluster]
+// TODO(noah): DELETE IN 17.0.0
+func (a *ServerWithRoles) GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
+	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cluster, err := a.authServer.GetRemoteCluster(ctx, clusterName)
+	if err != nil {
+		return nil, utils.OpaqueAccessDenied(err)
+	}
+	if err := a.context.Checker.CheckAccessToRemoteCluster(cluster); err != nil {
+		return nil, utils.OpaqueAccessDenied(err)
+	}
+	return cluster, nil
+}
+
+// Deprecated: use [presencev1.PresenceService.ListRemoteClusters]
+// TODO(noah): DELETE IN 17.0.0
+func (a *ServerWithRoles) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
+	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	remoteClusters, err := a.authServer.GetRemoteClusters(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.filterRemoteClustersForUser(remoteClusters)
+}
+
+// filterRemoteClustersForUser filters remote clusters based on what the current user is authorized to access
+// TODO(noah): DELETE IN 17.0.0
+func (a *ServerWithRoles) filterRemoteClustersForUser(remoteClusters []types.RemoteCluster) ([]types.RemoteCluster, error) {
+	filteredClusters := make([]types.RemoteCluster, 0, len(remoteClusters))
+	for _, rc := range remoteClusters {
+		if err := a.context.Checker.CheckAccessToRemoteCluster(rc); err != nil {
+			if trace.IsAccessDenied(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+		filteredClusters = append(filteredClusters, rc)
+	}
+	return filteredClusters, nil
+}
+
+// Deprecated: use [presencev1.PresenceService.DeleteRemoteCluster]
+// TODO(noah): DELETE IN 17.0.0
+func (a *ServerWithRoles) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
+	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteRemoteCluster(ctx, clusterName)
+}
+
 // AcquireSemaphore acquires lease with requested resources from semaphore.
 func (a *ServerWithRoles) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSemaphore, types.VerbCreate, types.VerbUpdate); err != nil {
@@ -6960,38 +6986,13 @@ func (a *ServerWithRoles) ListReleases(ctx context.Context) ([]*types.Release, e
 	return a.authServer.releaseService.ListReleases(ctx)
 }
 
-// TODO(sshah): set MFARequired for SAML IdP admin actions?
-func (a *ServerWithRoles) checkAccessToSAMLIdPServiceProvider(sp types.SAMLIdPServiceProvider) error {
-	return a.context.Checker.CheckAccess(
-		sp,
-		// MFA is not required for operations on SAML resources but
-		// will be enforced at the connection time.
-		services.AccessState{})
-}
-
 // ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 func (a *ServerWithRoles) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextToken string) ([]types.SAMLIdPServiceProvider, string, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, pageSize, nextToken)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	// Filter out service providers the caller doesn't have access to.
-	var filtered []types.SAMLIdPServiceProvider
-	for _, sp := range sps {
-		err := a.checkAccessToSAMLIdPServiceProvider(sp)
-		if err != nil && !trace.IsAccessDenied(err) {
-			return nil, "", trace.Wrap(err)
-		} else if err == nil {
-			filtered = append(filtered, sp)
-		}
-
-	}
-	return filtered, nextKey, nil
+	return a.authServer.ListSAMLIdPServiceProviders(ctx, pageSize, nextToken)
 }
 
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
@@ -7000,16 +7001,7 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name st
 		return nil, trace.Wrap(err)
 	}
 
-	sp, err := a.authServer.GetSAMLIdPServiceProvider(ctx, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sp, nil
+	return a.authServer.GetSAMLIdPServiceProvider(ctx, name)
 }
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
@@ -7047,8 +7039,14 @@ func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if sp.GetEntityDescriptor() != "" {
+		if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
@@ -7090,14 +7088,11 @@ func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp t
 		return trace.Wrap(err)
 	}
 
-	existingSP, err := a.authServer.GetSAMLIdPServiceProvider(ctx, sp.GetName())
-	if err != nil {
+	if err := services.ValidateSAMLIdPACSURLAndRelayStateInputs(sp); err != nil {
 		return trace.Wrap(err)
 	}
-	if err = a.checkAccessToSAMLIdPServiceProvider(existingSP); err != nil {
-		return trace.Wrap(err)
-	}
-	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
+
+	if err := services.ValidateAndFilterEntityDescriptor(sp, services.SAMLACSInputStrictFilter); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -7153,10 +7148,6 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 		return trace.Wrap(err)
 	}
 
-	if err = a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
-		return trace.Wrap(err)
-	}
-
 	name = sp.GetName()
 	entityID = sp.GetEntityID()
 
@@ -7166,7 +7157,6 @@ func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name
 }
 
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
-// Returns without deleting any resource if user role denies access to any one of the listed resource.
 func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) (err error) {
 	defer func() {
 		code := events.SAMLIdPServiceProviderDeleteAllCode
@@ -7193,23 +7183,6 @@ func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) 
 
 	if err := a.context.AuthorizeAdminAction(); err != nil {
 		return trace.Wrap(err)
-	}
-
-	var startKey string
-	for {
-		sps, nextKey, err := a.authServer.ListSAMLIdPServiceProviders(ctx, apidefaults.DefaultChunkSize, startKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, sp := range sps {
-			if err := a.checkAccessToSAMLIdPServiceProvider(sp); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		if nextKey == "" {
-			break
-		}
-		startKey = nextKey
 	}
 
 	err = a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)

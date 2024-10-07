@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { ButtonPrimary, Flex, H2, Image, Text } from 'design';
+import { ButtonPrimary, Flex, Image, Text } from 'design';
 
 import { OnboardCard } from 'design/Onboard/OnboardCard';
 
@@ -47,9 +47,14 @@ export function RegisterSuccess({
 
   return (
     <OnboardCard center>
-      <H2 mb={3} style={{ textTransform: 'capitalize' }}>
+      <Text
+        typography="h4"
+        color="text"
+        mb={3}
+        style={{ textTransform: 'capitalize' }}
+      >
         {actionTxt} successful
-      </H2>
+      </Text>
       <Flex justifyContent="center" mb={3}>
         <Image src={shieldCheck} width="200px" height="143px" />
       </Flex>

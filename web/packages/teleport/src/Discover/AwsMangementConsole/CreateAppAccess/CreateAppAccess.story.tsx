@@ -18,7 +18,8 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { delay, http, HttpResponse } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
+import { rest } from 'msw';
 import { Info } from 'design/Alert';
 
 import { ContextProvider } from 'teleport';
@@ -37,16 +38,19 @@ import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { CreateAppAccess } from './CreateAppAccess';
 
+initialize();
+
 export default {
   title: 'Teleport/Discover/Application/AwsConsole/CreateApp',
+  loaders: [mswLoader],
 };
 
 export const Success = () => <Component />;
 Success.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, () =>
-        HttpResponse.json({ name: 'app-1' })
+      rest.post(cfg.api.awsAppAccessPath, (req, res, ctx) =>
+        res(ctx.json({ name: 'app-1' }))
       ),
     ],
   },
@@ -59,7 +63,9 @@ export const Loading = () => {
 Loading.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, async () => await delay('infinite')),
+      rest.post(cfg.api.awsAppAccessPath, (req, res, ctx) =>
+        res(ctx.delay('infinite'))
+      ),
     ],
   },
 };
@@ -68,12 +74,10 @@ export const Failed = () => <Component />;
 Failed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.awsAppAccessPath, () =>
-        HttpResponse.json(
-          {
-            message: 'Some kind of error message',
-          },
-          { status: 403 }
+      rest.post(cfg.api.awsAppAccessPath, (req, res, ctx) =>
+        res(
+          ctx.status(403),
+          ctx.json({ message: 'Some kind of error message' })
         )
       ),
     ],
@@ -106,7 +110,7 @@ const Component = () => {
       name: '',
       kind: ResourceKind.Application,
       icon: null,
-      keywords: [],
+      keywords: '',
       event: DiscoverEventResource.ApplicationHttp,
       appMeta: {
         awsConsole: true,

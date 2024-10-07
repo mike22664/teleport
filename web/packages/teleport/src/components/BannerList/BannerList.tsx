@@ -20,9 +20,9 @@ import React, { useEffect, useState } from 'react';
 
 import { Box } from 'design';
 
-import { StandardBanner } from './StandardBanner';
+import { Banner } from './Banner';
 
-import type { Severity } from './StandardBanner';
+import type { Severity } from './Banner';
 import type { ReactNode } from 'react';
 
 export const BannerList = ({
@@ -57,13 +57,12 @@ export const BannerList = ({
   return (
     <Box>
       {shownBanners.map(banner => (
-        <StandardBanner
+        <Banner
           message={banner.message}
           severity={banner.severity}
           id={banner.id}
-          link={banner.linkDestination}
-          linkText={banner.linkText}
-          onDismiss={() => removeBanner(banner.id)}
+          link={banner.link}
+          onClose={removeBanner}
           key={banner.id}
         />
       ))}
@@ -84,7 +83,6 @@ export type BannerType = {
   message: string;
   severity: Severity;
   id: string;
-  linkDestination?: string;
-  linkText?: string;
+  link?: string;
   hidden?: boolean;
 };

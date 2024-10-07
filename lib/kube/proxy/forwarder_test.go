@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -1647,18 +1646,17 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 	clusterName := "leaf"
 
 	// Create a cert pool with the cert from fixtures.TLSCACertPEM
-	caCert, err := tlsutils.ParseCertificatePEM([]byte(fixtures.TLSCACertPEM))
-	require.NoError(t, err)
 	certPool := x509.NewCertPool()
-	certPool.AddCert(caCert)
+	certPool.AppendCertsFromPEM([]byte(fixtures.TLSCACertPEM))
 
+	// create the tls config used by the forwarder
+	originalTLSConfig := &tls.Config{}
 	// create the auth server mock client
 	clock := clockwork.NewFakeClock()
 	cl, err := newMockCSRClient(clock)
 	require.NoError(t, err)
 	cl.leafClusterName = clusterName
 
-	var getConnTLSRootsCalled bool
 	f := &Forwarder{
 		cfg: ForwarderConfig{
 			Keygen:            testauthority.New(),
@@ -1667,38 +1665,24 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 			tracer:            otel.Tracer(teleport.ComponentKube),
 			KubeServiceType:   ProxyService,
 			CachingAuthClient: cl,
-
-			GetConnTLSCertificate: func() (*tls.Certificate, error) {
-				return nil, nil
-			},
-			GetConnTLSRoots: func() (*x509.CertPool, error) {
-				getConnTLSRootsCalled = true
-				return x509.NewCertPool(), nil
-			},
+			ConnTLSConfig:     originalTLSConfig,
 		},
 		log: logrus.NewEntry(logrus.New()),
 		ctx: context.Background(),
 	}
-
 	// generate tlsConfig for the leaf cluster
 	tlsConfig, err := f.getTLSConfigForLeafCluster(clusterName)
 	require.NoError(t, err)
-	_ = tlsConfig.VerifyConnection(tls.ConnectionState{
-		ServerName: "nonempty",
-		PeerCertificates: []*x509.Certificate{
-			caCert,
-		},
-	})
-	require.False(t, getConnTLSRootsCalled)
+	// ensure that the tlsConfig is a clone of the originalTLSConfig
+	require.NotSame(t, originalTLSConfig, tlsConfig, "expected tlsConfig to be different from originalTLSConfig")
+	// ensure that the tlsConfig has the certPool as the RootCAs
+	require.True(t, tlsConfig.RootCAs.Equal(certPool), "expected root CAs to be equal to certPool")
 
 	// generate tlsConfig for the local cluster
 	_, localTLSConfig, err := f.newLocalClusterTransport(clusterName)
 	require.NoError(t, err)
-	_ = localTLSConfig.VerifyConnection(tls.ConnectionState{
-		ServerName: "nonempty",
-		PeerCertificates: []*x509.Certificate{
-			caCert,
-		},
-	})
-	require.True(t, getConnTLSRootsCalled)
+	// ensure that the localTLSConfig is a clone of the originalTLSConfig
+	require.NotSame(t, originalTLSConfig, localTLSConfig, "expected localTLSConfig pointer to be different from originalTLSConfig")
+	// ensure that the localTLSConfig doesn't have the certPool as the RootCAs
+	require.False(t, localTLSConfig.RootCAs.Equal(certPool), "root CAs should not include certPool")
 }

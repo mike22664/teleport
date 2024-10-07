@@ -35,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/metadata"
@@ -223,9 +222,9 @@ func TryRun(commands []CLICommand, args []string) error {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          clientConfig.SSH,
-		Log:                   cfg.Logger,
+		Log:                   clientConfig.Log,
 		InsecureSkipTLSVerify: clientConfig.Insecure,
-		GetClusterCAs:         apiclient.ClusterCAsFromCertPool(clientConfig.TLS.RootCAs),
+		ClusterCAs:            clientConfig.TLS.RootCAs,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -291,7 +290,6 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 		log.Debugf("Debug logging has been enabled.")
 	}
 	cfg.Log = log.StandardLogger()
-	cfg.Logger = slog.Default()
 
 	if cfg.Version == "" {
 		cfg.Version = defaults.TeleportConfigVersionV1
@@ -409,7 +407,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
 	authConfig.Insecure = ccf.Insecure
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = cfg.Logger
+	authConfig.Log = cfg.Log
 	authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
 
 	return authConfig, nil
@@ -446,14 +444,14 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 
 	webProxyHost, _ := c.WebProxyHostPort()
-	idx := client.KeyRingIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
-	keyRing, err := clientStore.GetKeyRing(idx, client.WithSSHCerts{})
+	idx := client.KeyIndex{ProxyHost: webProxyHost, Username: c.Username, ClusterName: profile.Cluster}
+	key, err := clientStore.GetKey(idx, client.WithSSHCerts{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Auth config can be created only using a key associated with the root cluster.
-	rootCluster, err := keyRing.RootClusterName()
+	rootCluster, err := key.RootClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -462,13 +460,13 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	}
 
 	authConfig := &authclient.Config{}
-	authConfig.TLS, err = keyRing.TeleportClientTLSConfig(cfg.CipherSuites, []string{rootCluster})
+	authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites, []string{rootCluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
 	authConfig.Insecure = ccf.Insecure
-	authConfig.SSH, err = keyRing.ProxyClientSSHConfig(rootCluster)
+	authConfig.SSH, err = key.ProxyClientSSHConfig(rootCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -482,7 +480,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 		cfg.SetAuthServerAddress(*webProxyAddr)
 	}
 	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = cfg.Logger
+	authConfig.Log = cfg.Log
 	authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
 
 	if c.TLSRoutingEnabled {

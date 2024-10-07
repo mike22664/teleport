@@ -288,23 +288,17 @@ func (a *Server) updateBotInstance(
 		}
 	}
 
-	// TODO(nklaassen): consider recording both public keys once they are
-	// actually separated.
-	var publicKeyPEM []byte
-	if req.tlsPublicKey != nil {
-		publicKeyPEM = req.tlsPublicKey
-	} else {
-		// At least one of tlsPublicKey or sshPublicKey will be set, this is validated by [req.check].
-		var err error
-		publicKeyPEM, err = sshPublicKeyToPKIXPEM(req.sshPublicKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// req.PublicKey is in SSH Authorized Keys format. For consistency, we
+	// only store public keys in PEM wrapped PKIX, DER format within
+	// BotInstances.
+	pkixPEM, err := sshPublicKeyToPKIXPEM(req.publicKey)
+	if err != nil {
+		return trace.Wrap(err, "converting key")
 	}
 
 	authRecord := &machineidv1pb.BotInstanceStatusAuthentication{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
-		PublicKey:       publicKeyPEM,
+		PublicKey:       pkixPEM,
 
 		// Note: This is presumed to be a token join. If not, a
 		// `templateAuthRecord` should be provided to override this value.
@@ -425,7 +419,7 @@ func (a *Server) updateBotInstance(
 		}
 	}
 
-	_, err := a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
+	_, err = a.BotInstance.PatchBotInstance(ctx, botName, botInstanceID, func(bi *machineidv1pb.BotInstance) (*machineidv1pb.BotInstance, error) {
 		if bi.Status == nil {
 			bi.Status = &machineidv1pb.BotInstanceStatus{}
 		}
@@ -486,8 +480,7 @@ func newBotInstance(
 //
 // Returns a second argument of the bot instance ID for inclusion in audit logs.
 func (a *Server) generateInitialBotCerts(
-	ctx context.Context, botName, username, loginIP string,
-	sshPubKey, tlsPubKey []byte,
+	ctx context.Context, botName, username, loginIP string, pubKey []byte,
 	expires time.Time, renewable bool,
 	initialAuth *machineidv1pb.BotInstanceStatusAuthentication,
 	existingInstanceID string, currentIdentityGeneration int32,
@@ -532,8 +525,7 @@ func (a *Server) generateInitialBotCerts(
 	certReq := certRequest{
 		user:          userState,
 		ttl:           expires.Sub(a.GetClock().Now()),
-		sshPublicKey:  sshPubKey,
-		tlsPublicKey:  tlsPubKey,
+		publicKey:     pubKey,
 		checker:       checker,
 		traits:        accessInfo.Traits,
 		renewable:     renewable,

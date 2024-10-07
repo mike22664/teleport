@@ -78,7 +78,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		return trace.Wrap(err)
 	}
 
-	teleportClusterName := conn.ClusterName()
+	teleportClusterName := conn.ServerIdentity.ClusterName
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 	// This service can run in 2 modes:
@@ -128,11 +128,11 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
 				Component:            teleport.ComponentKube,
-				HostUUID:             conn.HostID(),
+				HostUUID:             conn.ServerIdentity.ID.HostUUID,
 				Resolver:             conn.TunnelProxyResolver(),
 				Client:               conn.Client,
 				AccessPoint:          accessPoint,
-				AuthMethods:          conn.ClientAuthMethods(),
+				HostSigner:           conn.ServerIdentity.KeySigner,
 				Cluster:              teleportClusterName,
 				Server:               shtl,
 				FIPS:                 process.Config.FIPS,
@@ -191,7 +191,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
+	tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -242,7 +242,6 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		CloudLabels:          process.cloudLabels,
 		Log:                  process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 		PROXYProtocolMode:    multiplexer.PROXYProtocolOff, // Kube service doesn't need to process unsigned PROXY headers.
-		InventoryHandle:      process.inventoryHandle,
 	})
 	if err != nil {
 		return trace.Wrap(err)

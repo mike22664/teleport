@@ -38,13 +38,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
-	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -253,28 +251,24 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	require.NoError(t, err)
 
 	// set up host private key and certificate
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+
+	tlsPub, err := auth.PrivateKeyToPublicKeyTLS(priv)
 	require.NoError(t, err)
-	tlsPublicKey, err := keys.MarshalPublicKey(key.Public())
-	require.NoError(t, err)
-	sshPub, err := ssh.NewPublicKey(key.Public())
-	require.NoError(t, err)
-	sshPublicKey := ssh.MarshalAuthorizedKey(sshPub)
 
 	certs, err := s.server.Auth().GenerateHostCerts(ctx,
 		&proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     s.server.ClusterName(),
 			Role:         types.RoleNode,
-			PublicSSHKey: sshPublicKey,
-			PublicTLSKey: tlsPublicKey,
+			PublicSSHKey: pub,
+			PublicTLSKey: tlsPub,
 		})
 	require.NoError(t, err)
 
 	// set up user CA and set up a user that has access to the server
-	s.signer, err = sshutils.NewSigner(privateKeyPEM, certs.SSH)
+	s.signer, err = sshutils.NewSigner(priv, certs.SSH)
 	require.NoError(t, err)
 
 	s.nodeID = uuid.New().String()

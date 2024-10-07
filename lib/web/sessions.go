@@ -384,7 +384,7 @@ func (c *SessionContext) ClientTLSConfig(ctx context.Context, clusterName ...str
 	}
 
 	tlsConfig := utils.TLSConfig(c.cfg.Parent.cipherSuites)
-	tlsCert, err := tls.X509KeyPair(c.cfg.Session.GetTLSCert(), c.cfg.Session.GetTLSPriv())
+	tlsCert, err := tls.X509KeyPair(c.cfg.Session.GetTLSCert(), c.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
@@ -445,7 +445,7 @@ func (c *SessionContext) GetAgent() (agent.ExtendedAgent, *ssh.Certificate, erro
 	if len(cert.ValidPrincipals) == 0 {
 		return nil, nil, trace.BadParameter("expected at least valid principal in certificate")
 	}
-	privateKey, err := ssh.ParseRawPrivateKey(c.cfg.Session.GetSSHPriv())
+	privateKey, err := ssh.ParseRawPrivateKey(c.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "failed to parse SSH private key")
 	}
@@ -948,8 +948,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		ClientMetadata: clientMeta,
-		SSHPublicKey:   c.UserPublicKeys.SSHPubKey,
-		TLSPublicKey:   c.UserPublicKeys.TLSPubKey,
+		PublicKey:      c.PubKey,
 	}
 	if c.Password != "" {
 		authReq.Pass = &authclient.PassCreds{Password: []byte(c.Password)}
@@ -969,8 +968,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
 		KubernetesCluster:       c.KubernetesCluster,
-		SSHAttestationStatement: c.UserPublicKeys.SSHAttestationStatement,
-		TLSAttestationStatement: c.UserPublicKeys.TLSAttestationStatement,
+		AttestationStatement:    c.AttestationStatement,
 	})
 }
 
@@ -1127,7 +1125,7 @@ func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID st
 }
 
 func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session types.WebSession) (*SessionContext, error) {
-	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetTLSPriv())
+	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

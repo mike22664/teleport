@@ -167,7 +167,7 @@ export function LabelsCreater({
                 )}
               </Flex>
               {label.isDupKey && (
-                <Text color="red" typography="body3">
+                <Text color="red" fontSize="12px">
                   Duplicate key not allowed
                 </Text>
               )}

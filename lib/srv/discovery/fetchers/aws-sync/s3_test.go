@@ -49,13 +49,12 @@ func TestPollAWSS3(t *testing.T) {
 		accountID       = "12345678"
 		bucketName      = "bucket1"
 		otherBucketName = "bucket2"
-		missingBucket   = "missing_perm_bucket"
 	)
 	var (
 		regions       = []string{"eu-west-1"}
 		mockedClients = &cloud.TestCloudClients{
 			S3: &mocks.S3Mock{
-				Buckets: s3Buckets(bucketName, otherBucketName, missingBucket),
+				Buckets: s3Buckets(bucketName, otherBucketName),
 				BucketPolicy: map[string]string{
 					bucketName:      "policy",
 					otherBucketName: "otherPolicy",
@@ -140,10 +139,6 @@ func TestPollAWSS3(t *testing.T) {
 							},
 						},
 					},
-					{
-						Name:      missingBucket,
-						AccountId: accountID,
-					},
 				},
 			},
 		},
@@ -173,7 +168,7 @@ func TestPollAWSS3(t *testing.T) {
 			result := &Resources{}
 			execFunc := a.pollAWSS3Buckets(context.Background(), result, collectErr)
 			require.NoError(t, execFunc())
-			require.Error(t, trace.NewAggregate(errs...))
+			require.NoError(t, trace.NewAggregate(errs...))
 
 			sortSlice(tt.want.S3Buckets)
 			sortSlice(result.S3Buckets)

@@ -27,7 +27,6 @@ import {
   MenuItem,
   Text,
   ButtonSecondary,
-  H1,
 } from 'design';
 import styled, { css } from 'styled-components';
 import { Transition } from 'react-transition-group';
@@ -182,7 +181,8 @@ export function Status(props: { closeDocument?: () => void }) {
       <Flex flexDirection="column" gap={3}>
         <Flex flexDirection="column" gap={1}>
           <Flex justifyContent="space-between">
-            <H1
+            <Text
+              typography="h3"
               css={`
                 display: flex;
               `}
@@ -190,7 +190,7 @@ export function Status(props: { closeDocument?: () => void }) {
               <icons.Laptop mr={2} />
               {/** The node name can be changed, so it might be different from the system hostname. */}
               {agentNode?.hostname || hostname}
-            </H1>
+            </Text>
             <MenuIcon
               Icon={icons.MoreVert}
               buttonIconProps={{

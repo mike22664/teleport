@@ -18,12 +18,13 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { H3 } from 'design';
+import { Text } from 'design';
 
 export default function TabIcon({ Icon, ...props }: Props) {
   return (
     <StyledTab
       ml="4"
+      typography="h5"
       key={props.title}
       active={props.active}
       onClick={props.onClick}
@@ -41,7 +42,7 @@ type Props = {
   Icon: (any) => JSX.Element;
 };
 
-const StyledTab = styled(H3)<{ active?: boolean }>`
+const StyledTab = styled(Text)<{ active?: boolean }>`
   align-items: center;
   display: flex;
   padding: 4px 8px;
@@ -53,7 +54,9 @@ const StyledTab = styled(H3)<{ active?: boolean }>`
   }
 
   ${({ active, theme }) =>
-    active
-      ? `border-bottom: 4px solid ${theme.colors.brand};`
-      : `font-weight: 400;`}
+    active &&
+    `
+    font-weight: 500;
+    border-bottom: 4px solid ${theme.colors.brand};
+  `}
 `;

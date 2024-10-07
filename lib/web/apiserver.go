@@ -23,7 +23,6 @@ package web
 import (
 	"compress/gzip"
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -76,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
@@ -226,8 +226,8 @@ type Config struct {
 	ProxyWebAddr utils.NetAddr
 	// ProxyPublicAddr contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
-	// GetProxyClientCertificate returns the proxy client certificate.
-	GetProxyClientCertificate func() (*tls.Certificate, error)
+	// GetProxyIdentity returns the identity of the proxy.
+	GetProxyIdentity func() (*state.Identity, error)
 	// CipherSuites is the list of cipher suites Teleport suppports.
 	CipherSuites []uint16
 
@@ -742,8 +742,15 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Unauthenticated access to the message of the day
 	h.GET("/webapi/motd", h.WithHighLimiter(h.motd))
 
-	// Unauthenticated access to retrieving the script used to install Teleport
+	// Unauthenticated access to retrieving the script used to install
+	// Teleport
 	h.GET("/webapi/scripts/installer/:name", h.WithLimiter(h.installer))
+
+	// Deprecated: AD discovery flow is deprecated and will be removed in v17.0.0.
+	// TODO(isaiah): Delete in v17.0.0.
+	h.GET("/webapi/scripts/desktop-access/install-ad-ds.ps1", h.WithLimiter(h.desktopAccessScriptInstallADDSHandle))
+	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", h.WithLimiter(h.desktopAccessScriptInstallADCSHandle))
+	h.GET("/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1", h.WithLimiter(h.desktopAccessScriptConfigureHandle))
 
 	// Forwards traces to the configured upstream collector
 	h.POST("/webapi/traces", h.WithAuth(h.traces))
@@ -1057,16 +1064,13 @@ func (h *Handler) GetProxyClient() authclient.ClientI {
 	return h.cfg.ProxyClient
 }
 
-// GetProxyClientCertificate returns the proxy client certificate.
-func (h *Handler) GetProxyClientCertificate() (*tls.Certificate, error) {
-	if h.cfg.GetProxyClientCertificate == nil {
-		return nil, trace.BadParameter("GetProxyClientCertificate is not set")
+// GetProxyIdentity returns the identity of the proxy
+func (h *Handler) GetProxyIdentity() (*state.Identity, error) {
+	if h.cfg.GetProxyIdentity == nil {
+		return nil, trace.BadParameter("GetProxyIdentity function is not set")
 	}
-	tlsCert, err := h.cfg.GetProxyClientCertificate()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tlsCert, nil
+	rsp, err := h.cfg.GetProxyIdentity()
+	return rsp, trace.Wrap(err)
 }
 
 // GetAccessPoint returns the caching access point.
@@ -1222,16 +1226,15 @@ func (h *Handler) AccessGraphAddr() utils.NetAddr {
 
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
 	as := webclient.AuthenticationSettings{
-		Type:                    constants.Local,
-		SecondFactor:            cap.GetSecondFactor(),
-		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
-		AllowPasswordless:       cap.GetAllowPasswordless(),
-		AllowHeadless:           cap.GetAllowHeadless(),
-		Local:                   &webclient.LocalSettings{},
-		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
-		PIVSlot:                 cap.GetPIVSlot(),
-		DeviceTrust:             deviceTrustSettings(cap),
-		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
+		Type:              constants.Local,
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		AllowPasswordless: cap.GetAllowPasswordless(),
+		AllowHeadless:     cap.GetAllowHeadless(),
+		Local:             &webclient.LocalSettings{},
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
+		PIVSlot:           cap.GetPIVSlot(),
+		DeviceTrust:       deviceTrustSettings(cap),
 	}
 
 	// Only copy the connector name if it's truly local and not a local fallback.
@@ -1268,12 +1271,11 @@ func oidcSettings(connector types.OIDCConnector, cap types.AuthPreference) webcl
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:            cap.GetSecondFactor(),
-		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
-		PIVSlot:                 cap.GetPIVSlot(),
-		DeviceTrust:             deviceTrustSettings(cap),
-		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
+		PIVSlot:           cap.GetPIVSlot(),
+		DeviceTrust:       deviceTrustSettings(cap),
 	}
 }
 
@@ -1286,12 +1288,11 @@ func samlSettings(connector types.SAMLConnector, cap types.AuthPreference) webcl
 			SingleLogoutEnabled: connector.GetSingleLogoutURL() != "",
 		},
 		// Local fallback / MFA.
-		SecondFactor:            cap.GetSecondFactor(),
-		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
-		PIVSlot:                 cap.GetPIVSlot(),
-		DeviceTrust:             deviceTrustSettings(cap),
-		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
+		PIVSlot:           cap.GetPIVSlot(),
+		DeviceTrust:       deviceTrustSettings(cap),
 	}
 }
 
@@ -1303,12 +1304,11 @@ func githubSettings(connector types.GithubConnector, cap types.AuthPreference) w
 			Display: connector.GetDisplay(),
 		},
 		// Local fallback / MFA.
-		SecondFactor:            cap.GetSecondFactor(),
-		PreferredLocalMFA:       cap.GetPreferredLocalMFA(),
-		PrivateKeyPolicy:        cap.GetPrivateKeyPolicy(),
-		PIVSlot:                 cap.GetPIVSlot(),
-		DeviceTrust:             deviceTrustSettings(cap),
-		SignatureAlgorithmSuite: cap.GetSignatureAlgorithmSuite(),
+		SecondFactor:      cap.GetSecondFactor(),
+		PreferredLocalMFA: cap.GetPreferredLocalMFA(),
+		PrivateKeyPolicy:  cap.GetPrivateKeyPolicy(),
+		PIVSlot:           cap.GetPIVSlot(),
+		DeviceTrust:       deviceTrustSettings(cap),
 	}
 }
 
@@ -1512,16 +1512,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authPref, err := h.cfg.AccessPoint.GetAuthPreference(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return webclient.PingResponse{
-		Auth: webclient.AuthenticationSettings{
-			// Nodes need the signature algorithm suite when joining to generate
-			// keys with the correct algorithm.
-			SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
-		},
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
@@ -1963,17 +1954,15 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
-		ConnectorID:             req.ConnectorID,
-		SshPublicKey:            req.SSHPubKey,
-		TlsPublicKey:            req.TLSPubKey,
-		SshAttestationStatement: req.SSHAttestationStatement.ToProto(),
-		TlsAttestationStatement: req.TLSAttestationStatement.ToProto(),
-		CertTTL:                 req.CertTTL,
-		ClientRedirectURL:       req.RedirectURL,
-		Compatibility:           req.Compatibility,
-		RouteToCluster:          req.RouteToCluster,
-		KubernetesCluster:       req.KubernetesCluster,
-		ClientLoginIP:           remoteAddr,
+		ConnectorID:          req.ConnectorID,
+		PublicKey:            req.PublicKey,
+		CertTTL:              req.CertTTL,
+		ClientRedirectURL:    req.RedirectURL,
+		Compatibility:        req.Compatibility,
+		RouteToCluster:       req.RouteToCluster,
+		KubernetesCluster:    req.KubernetesCluster,
+		AttestationStatement: req.AttestationStatement.ToProto(),
+		ClientLoginIP:        remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create GitHub auth request.")
@@ -2042,7 +2031,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	logger.Infof("Callback is redirecting to console login.")
-	if len(response.Req.SSHPubKey)+len(response.Req.TLSPubKey) == 0 {
+	if len(response.Req.PublicKey) == 0 {
 		logger.Error("Not a web or console login request.")
 		return client.LoginFailedRedirectURL
 	}
@@ -2670,9 +2659,6 @@ func (h *Handler) mfaLoginFinish(w http.ResponseWriter, r *http.Request, p httpr
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	clientMeta := clientMetaFromReq(r)
 	cert, err := h.auth.AuthenticateSSHUser(r.Context(), *req, clientMeta)
@@ -2817,7 +2803,6 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 			types.KindNode,
 			types.KindWindowsDesktop,
 			types.KindKubernetesCluster,
-			types.KindSAMLIdPServiceProvider,
 		}
 	}
 
@@ -2893,21 +2878,6 @@ func calculateDesktopLogins(loginGetter loginGetter, r types.ResourceWithLabels,
 	}
 
 	logins, err := loginGetter.GetAllowedLoginsForResource(r)
-	return logins, trace.Wrap(err)
-}
-
-// calculateAppLogins determines the app logins allowed for the provided
-// resource.
-//
-// TODO(gabrielcorado): DELETE IN V18.0.0
-// This is here for backward compatibility in case the auth server
-// does not support enriched resources yet.
-func calculateAppLogins(loginGetter loginGetter, r types.AppServer, allowedLogins []string) ([]string, error) {
-	if len(allowedLogins) > 0 {
-		return allowedLogins, nil
-	}
-
-	logins, err := loginGetter.GetAllowedLoginsForResource(r.GetApp())
 	return logins, trace.Wrap(err)
 }
 
@@ -2994,7 +2964,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			db := ui.MakeDatabase(r.GetDatabase(), dbUsers, dbNames, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, db)
 		case types.AppServer:
-			allowedAWSRoles, err := calculateAppLogins(accessChecker, r, enriched.Logins)
+			allowedAWSRoles, err := accessChecker.GetAllowedLoginsForResource(r.GetApp())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -4204,9 +4174,6 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	authClient := h.cfg.ProxyClient
 
@@ -4218,16 +4185,14 @@ func (h *Handler) createSSHCert(w http.ResponseWriter, r *http.Request, p httpro
 	authSSHUserReq := authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 			Username:       req.User,
-			SSHPublicKey:   req.SSHPubKey,
-			TLSPublicKey:   req.TLSPubKey,
+			PublicKey:      req.PubKey,
 			ClientMetadata: clientMetaFromReq(r),
 		},
-		CompatibilityMode:       req.Compatibility,
-		TTL:                     req.TTL,
-		RouteToCluster:          req.RouteToCluster,
-		KubernetesCluster:       req.KubernetesCluster,
-		SSHAttestationStatement: req.SSHAttestationStatement,
-		TLSAttestationStatement: req.TLSAttestationStatement,
+		CompatibilityMode:    req.Compatibility,
+		TTL:                  req.TTL,
+		RouteToCluster:       req.RouteToCluster,
+		KubernetesCluster:    req.KubernetesCluster,
+		AttestationStatement: req.AttestationStatement,
 	}
 
 	if req.HeadlessAuthenticationID != "" {

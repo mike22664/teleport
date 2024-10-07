@@ -95,7 +95,7 @@ func onAppLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	if err := tc.LocalAgent().AddAppKeyRing(key); err != nil {
+	if err := tc.LocalAgent().AddAppKey(key); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -112,7 +112,7 @@ func appLogin(
 	clusterClient *client.ClusterClient,
 	rootClient authclient.ClientI,
 	appCertParams client.ReissueParams,
-) (*client.KeyRing, error) {
+) (*client.Key, error) {
 	// TODO (Joerger): DELETE IN v17.0.0
 	var err error
 	appCertParams.RouteToApp.SessionID, err = authclient.TryCreateAppSessionForClientCertV15(ctx, rootClient, tc.Username, appCertParams.RouteToApp)
@@ -120,9 +120,9 @@ func appLogin(
 		return nil, trace.Wrap(err)
 	}
 
-	keyRing, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams,
+	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, appCertParams,
 		tc.NewMFAPrompt(mfa.WithPromptReasonSessionMFA("Application", appCertParams.RouteToApp.Name)))
-	return keyRing, trace.Wrap(err)
+	return key, trace.Wrap(err)
 }
 
 func localProxyRequiredForApp(tc *client.TeleportClient) bool {
@@ -304,10 +304,6 @@ func onAppLogout(cf *CLIConf) error {
 		}
 
 		if len(logout) == 0 {
-			// Not logged in but still try to delete any dangling files.
-			if err := tc.LogoutApp(cf.AppName); err != nil {
-				return trace.Wrap(err)
-			}
 			return trace.BadParameter("not logged into app %q", cf.AppName)
 		}
 	} else {
@@ -319,7 +315,6 @@ func onAppLogout(cf *CLIConf) error {
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-
 		err = tc.LogoutApp(app.Name)
 		if err != nil {
 			return trace.Wrap(err)
@@ -331,14 +326,6 @@ func onAppLogout(cf *CLIConf) error {
 			log.WithError(err).Warnf("Failed to remove %v", profile.AppLocalCAPath(tc.SiteName, app.Name))
 		}
 	}
-
-	if cf.AppName == "" {
-		// Try to delete any dangling files even if the app sessions are expired.
-		if err := tc.LogoutAllApps(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	if len(logout) == 1 {
 		fmt.Printf("Logged out of app %q\n", logout[0].Name)
 	} else {
@@ -413,16 +400,13 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		curlInsecureFlag = "--insecure "
 	}
 
-	certPath := profile.AppCertPath(tc.SiteName, routeToApp.Name)
-	keyPath := profile.AppKeyPath(tc.SiteName, routeToApp.Name)
-
 	curlCmd := fmt.Sprintf(`curl %s\
   --cert %q \
   --key %q \
   %v`,
 		curlInsecureFlag,
-		certPath,
-		keyPath,
+		profile.AppCertPath(tc.SiteName, routeToApp.Name),
+		profile.KeyPath(),
 		uri)
 	format = strings.ToLower(format)
 	switch format {
@@ -431,9 +415,9 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 	case appFormatCA:
 		return profile.CACertPathForCluster(tc.SiteName), nil
 	case appFormatCert:
-		return certPath, nil
+		return profile.AppCertPath(tc.SiteName, routeToApp.Name), nil
 	case appFormatKey:
-		return keyPath, nil
+		return profile.KeyPath(), nil
 	case appFormatCURL:
 		return curlCmd, nil
 	case appFormatJSON, appFormatYAML:
@@ -441,8 +425,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 			Name:              routeToApp.Name,
 			URI:               uri,
 			CA:                profile.CACertPathForCluster(tc.SiteName),
-			Cert:              certPath,
-			Key:               keyPath,
+			Cert:              profile.AppCertPath(tc.SiteName, routeToApp.Name),
+			Key:               profile.KeyPath(),
 			Curl:              curlCmd,
 			AWSRoleARN:        routeToApp.AWSRoleARN,
 			AzureIdentity:     routeToApp.AzureIdentity,
@@ -460,8 +444,8 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 		t.AddRow([]string{"Name:     ", routeToApp.Name})
 		t.AddRow([]string{"URI:", uri})
 		t.AddRow([]string{"CA:", profile.CACertPathForCluster(tc.SiteName)})
-		t.AddRow([]string{"Cert:", certPath})
-		t.AddRow([]string{"Key:", keyPath})
+		t.AddRow([]string{"Cert:", profile.AppCertPath(tc.SiteName, routeToApp.Name)})
+		t.AddRow([]string{"Key:", profile.KeyPath()})
 
 		if routeToApp.AWSRoleARN != "" {
 			t.AddRow([]string{"AWS ARN:", routeToApp.AWSRoleARN})

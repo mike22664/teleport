@@ -765,15 +765,6 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			}
 			collections.accessMonitoringRules = &genericCollection[*accessmonitoringrulesv1.AccessMonitoringRule, accessMonitoringRuleGetter, accessMonitoringRulesExecutor]{cache: c, watch: watch}
 			collections.byKind[resourceKind] = collections.accessMonitoringRules
-		case types.KindAccessGraphSettings:
-			if c.ClusterConfig == nil {
-				return nil, trace.BadParameter("missing parameter ClusterConfig")
-			}
-			collections.accessGraphSettings = &genericCollection[*clusterconfigpb.AccessGraphSettings, accessGraphSettingsGetter, accessGraphSettingsExecutor]{
-				cache: c,
-				watch: watch,
-			}
-			collections.byKind[resourceKind] = collections.accessGraphSettings
 		case types.KindSPIFFEFederation:
 			if c.Config.SPIFFEFederations == nil {
 				return nil, trace.BadParameter("missing parameter SPIFFEFederations")
@@ -783,6 +774,15 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.spiffeFederations
+		case types.KindAccessGraphSettings:
+			if c.ClusterConfig == nil {
+				return nil, trace.BadParameter("missing parameter ClusterConfig")
+			}
+			collections.accessGraphSettings = &genericCollection[*clusterconfigpb.AccessGraphSettings, accessGraphSettingsGetter, accessGraphSettingsExecutor]{
+				cache: c,
+				watch: watch,
+			}
+			collections.byKind[resourceKind] = collections.accessGraphSettings
 		case types.KindAutoUpdateConfig:
 			if c.AutoUpdateService == nil {
 				return nil, trace.BadParameter("missing parameter AutoUpdateService")
@@ -1305,6 +1305,8 @@ func (clusterNameExecutor) getReader(cache *Cache, cacheOK bool) clusterNameGett
 type clusterNameGetter interface {
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
+
+var _ executor[types.ClusterName, clusterNameGetter] = clusterNameExecutor{}
 
 type autoUpdateConfigExecutor struct{}
 

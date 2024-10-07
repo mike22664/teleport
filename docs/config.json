@@ -9,8 +9,8 @@
           "slug": "/"
         },
         {
-           "title": "Get Started",
-           "slug": "/get-started/"
+          "title": "Get Started",
+          "slug": "/get-started/"
         },
         {
           "title": "Core Concepts",
@@ -35,7 +35,7 @@
             {
               "title": "Upgrading Reference",
               "slug": "/upgrading/upgrading-reference/"
-	    }
+            }
           ]
         },
         {
@@ -45,16 +45,19 @@
         {
           "title": "Usage Reporting and Billing",
           "slug": "/usage-billing/",
-          "forScopes": ["cloud", "enterprise"]
+          "forScopes": [
+            "cloud",
+            "enterprise"
+          ]
         },
         {
           "title": "Upcoming Releases",
           "slug": "/upcoming-releases/"
         },
-	{
-	  "title": "Cloud IP Addresses",
-	  "slug": "/ips/"
-	},
+        {
+          "title": "Cloud IP Addresses",
+          "slug": "/ips/"
+        },
         {
           "title": "Changelog",
           "slug": "/changelog/"
@@ -62,10 +65,10 @@
       ]
     },
     {
-    	"icon": "wrench",
-    	"title": "Admin Guides",
-    	"entries": [],
-    	"generateFrom": "admin-guides"
+      "icon": "wrench",
+      "title": "Admin Guides",
+      "entries": [],
+      "generateFrom": "admin-guides"
     },
     {
       "icon": "connect",
@@ -121,7 +124,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.22.0"
+      "version": "1.20.4"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -181,19 +184,19 @@
     },
     "teleport": {
       "git": "api/14.0.0-gd1e081e",
-      "major_version": "17",
-      "version": "17.0.0-dev",
+      "major_version": "16",
+      "version": "16.4.2",
       "url": "teleport.example.com",
       "golang": "1.22",
       "plugin": {
-        "version": "13.3.7"
+        "version": "16.4.2"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:13.3.7",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.3.7",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.3.7",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.3.7",
-      "teleport_install_script_url": "https://cdn.teleport.dev/install-v15.4.11.sh"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:16.4.2",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:16.4.2",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:16.4.2",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:16.4.2",
+      "teleport_install_script_url": "https://cdn.teleport.dev/install-v16.4.2.sh"
     },
     "terraform": {
       "version": "1.0.0"
@@ -210,6 +213,51 @@
     }
   },
   "redirects": [
+    {
+      "source": "/application-access/introduction/",
+      "destination": "/enroll-resources/application-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/setup/admin/github-sso/",
+      "destination": "/admin-guides/access-controls/sso/github-sso/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/deployment/circleci/",
+      "destination": "/enroll-resources/machine-id/deployment/circleci/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/deployment/gitlab/",
+      "destination": "/enroll-resources/machine-id/deployment/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/deployment/jenkins/",
+      "destination": "/enroll-resources/machine-id/deployment/jenkins/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/access-guides/ansible/",
+      "destination": "/enroll-resources/machine-id/access-guides/ansible/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/deployment/spacelift/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/access-guides/terraform/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
+      "permanent": true
+    },
+    {
+      "source": "/enroll-resources/machine-id/deployment/terraform/",
+      "destination": "/admin-guides/infrastructure-as-code/terraform-provider/dedicated-server/",
+      "permanent": true
+    },
     {
       "source": "/machine-id/deployment/aws/",
       "destination": "/enroll-resources/machine-id/deployment/aws/",
@@ -1336,18 +1384,18 @@
       "permanent": true
     },
     {
+      "source": "/database-access/guides/snowflake/",
+      "destination": "/enroll-resources/database-access/enroll-managed-databases/snowflake/",
+      "permanent": true
+    },
+    {
       "source": "/database-access/guides/redis-cluster/",
       "destination": "/enroll-resources/database-access/enroll-self-hosted-databases/redis-cluster/",
       "permanent": true
     },
     {
-      "source": "/get-started/",
-      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
-      "permanent": true
-    },
-    {
       "source": "/getting-started/",
-      "destination": "/admin-guides/deploy-a-cluster/linux-demo/",
+      "destination": "/get-started/",
       "permanent": true
     },
     {
@@ -2588,6 +2636,21 @@
     {
       "source": "/enroll-resources/machine-id/deployment/spacelift/",
       "destination": "/admin-guides/infrastructure-as-code/terraform-provider/spacelift/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/helm/guides/",
+      "destination": "/admin-guides/deploy-a-cluster/helm-deployments/",
+      "permanent": true
+    },
+    {
+      "source": "/desktop-access/",
+      "destination": "/enroll-resources/desktop-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/kubernetes-access/",
+      "destination": "/enroll-resources/kubernetes-access/introduction/",
       "permanent": true
     }
   ]

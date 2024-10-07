@@ -20,7 +20,7 @@ import { render, screen } from '@testing-library/react';
 
 import '@testing-library/jest-dom';
 
-import ThemeProvider from 'design/ThemeProvider';
+import { ThemeProvider } from 'styled-components';
 import 'jest-canvas-mock';
 import { darkTheme } from 'design/theme';
 

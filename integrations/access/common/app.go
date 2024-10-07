@@ -97,7 +97,7 @@ func (a *BaseApp) checkTeleportVersion(ctx context.Context) (proto.PingResponse,
 		}
 		return pong, trace.Wrap(err, "Unable to get Teleport server version")
 	}
-	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
+	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 

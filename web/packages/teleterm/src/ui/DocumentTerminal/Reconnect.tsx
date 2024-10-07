@@ -41,7 +41,9 @@ export function Reconnect(props: {
       mt={100}
       px="2"
     >
-      <Text typography="h2">{message}</Text>
+      <Text typography="h5" color="text.main">
+        {message}
+      </Text>
       <Flex flexDirection="column" alignItems="center" mx="auto">
         <Danger mb={3}>
           <Text

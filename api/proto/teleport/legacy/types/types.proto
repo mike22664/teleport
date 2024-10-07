@@ -19,7 +19,6 @@ package types;
 import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
@@ -1125,7 +1124,12 @@ message CertAuthoritySpecV2 {
     (gogoproto.jsontag) = "type",
     (gogoproto.casttype) = "CertAuthType"
   ];
-  // ClusterName identifies the cluster name this authority serves.
+  // DELETE IN(2.7.0) this field is deprecated,
+  // as resource name matches cluster name after migrations.
+  // and this property is enforced by the auth server code.
+  // ClusterName identifies cluster name this authority serves,
+  // for host authorities that means base hostname of all servers,
+  // for user authorities that means organization name
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
   // Roles is a list of roles assumed by users signed by this CA
   repeated string Roles = 5 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -1139,23 +1143,15 @@ message CertAuthoritySpecV2 {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "rotation,omitempty"
   ];
-  // SigningAlgType is unused.
-  //
-  // Deprecated: SigningAlgType is unused.
+  // SigningAlg is the algorithm used for signing new SSH certificates using
+  // SigningKeys.
   enum SigningAlgType {
-    option deprecated = true;
     UNKNOWN = 0;
     RSA_SHA1 = 1;
     RSA_SHA2_256 = 2;
     RSA_SHA2_512 = 3;
   }
-  // SigningAlg is unused.
-  //
-  // Deprecated: SigningAlg is unused.
-  SigningAlgType SigningAlg = 9 [
-    (gogoproto.jsontag) = "signing_alg,omitempty",
-    deprecated = true
-  ];
+  SigningAlgType SigningAlg = 9 [(gogoproto.jsontag) = "signing_alg,omitempty"];
   // ActiveKeys are the CA key sets used to sign any new certificates.
   CAKeySet ActiveKeys = 11 [
     (gogoproto.nullable) = false,
@@ -2095,10 +2091,6 @@ message AuthPreferenceSpecV2 {
 
   // HardwareKey are the settings for hardware key support.
   HardwareKey HardwareKey = 19 [(gogoproto.jsontag) = "hardware_key,omitempty"];
-
-  // SignatureAlgorithmSuite is the configured signature algorithm suite for the cluster.
-  // The current default value is "legacy". This field is not yet fully supported.
-  SignatureAlgorithmSuite signature_algorithm_suite = 20;
 }
 
 // U2F defines settings for U2F device.
@@ -3523,6 +3515,9 @@ message UserStatusV2 {
   // perform any password-related activity since then. See RFD 0159 for
   // details. Do NOT use this value for authentication purposes!
   PasswordState password_state = 1 [(gogoproto.jsontag) = "password_state,omitempty"];
+  // mfa_weakest_device reflects what the system knows about the user's weakest MFA device.
+  // Note that this is a "best effort" property, in that it can be UNSPECIFIED.
+  MFADeviceKind mfa_weakest_device = 2 [(gogoproto.jsontag) = "mfa_weakest_device,omitempty"];
 }
 
 // PasswordState indicates what is known about existence of user's password.
@@ -3533,6 +3528,18 @@ enum PasswordState {
   PASSWORD_STATE_UNSET = 1;
   // Password is known to be configured.
   PASSWORD_STATE_SET = 2;
+}
+
+// MFADeviceKind indicates what is known about existence of user's MFA device.
+enum MFADeviceKind {
+  // Unable to tell whether the MFA device has been configured.
+  MFA_DEVICE_KIND_UNSPECIFIED = 0;
+  // MFA device is known to be not configured.
+  MFA_DEVICE_KIND_UNSET = 1;
+  // MFA device is known to be configured using TOTP as the weakest form of MFA.
+  MFA_DEVICE_KIND_TOTP = 2;
+  // MFA device is known to be configured using WebAuthn as the weakest form of MFA.
+  MFA_DEVICE_KIND_WEBAUTHN = 3;
 }
 
 // UserSpecV2 is a specification for V2 user
@@ -3763,14 +3770,6 @@ message WebauthnDevice {
   // If an RPID change does happen, this helps Teleport detect it and react
   // accordingly.
   string credential_rp_id = 8;
-  // Authenticator Backup Eligibility (BE) bit, recorded during registration or
-  // backfill (for older authenticators).
-  // https://w3c.github.io/webauthn/#authdata-flags-be
-  google.protobuf.BoolValue credential_backup_eligible = 9;
-  // Authenticator Backup State (BS) bit, recorded during registration or
-  // backfill (for older authenticators).
-  // https://w3c.github.io/webauthn/#authdata-flags-bs
-  google.protobuf.BoolValue credential_backed_up = 10;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -3995,8 +3994,7 @@ message WebSessionSpecV2 {
   // Pub is the SSH certificate for the user, marshaled in the authorized key
   // format.
   bytes Pub = 2 [(gogoproto.jsontag) = "pub"];
-  // Priv is the SSH private key for the user, in PEM-encoded PKCS#1 or PKCS#8
-  // format. If TLSPriv is unset, this is also the TLS private key.
+  // Priv is the SSH private key for the user.
   bytes Priv = 3 [(gogoproto.jsontag) = "priv,omitempty"];
   // TLSCert is the X.509 certificate for the user (PEM-encoded).
   bytes TLSCert = 4 [(gogoproto.jsontag) = "tls_cert,omitempty"];
@@ -4047,9 +4045,6 @@ message WebSessionSpecV2 {
   // If during login a device is required and DeviceWebToken is nil, then it's
   // likely the user needs to enroll their device to avoid impacting access.
   TrustedDeviceRequirement TrustedDeviceRequirement = 14 [(gogoproto.jsontag) = "trusted_device_requirement,omitempty"];
-  // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
-  // format. If unset, then Priv is used as both the SSH and TLS private key.
-  bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
 }
 
 // TrustedDeviceRequirement indicates whether access may be hindered by the lack
@@ -4579,14 +4574,10 @@ message OIDCAuthRequest {
   // Teleport Proxy after the oidc login attempt in the browser.
   string RedirectURL = 6 [(gogoproto.jsontag) = "redirect_url"];
 
-  // PublicKey is an optional public key, users want these keys to be signed by
-  // auth servers user CA in case of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes PublicKey = 7 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
+  // PublicKey is an optional public key, users want these
+  // keys to be signed by auth servers user CA in case
+  // of successful auth
+  bytes PublicKey = 7 [(gogoproto.jsontag) = "public_key"];
 
   // CertTTL is the TTL of the certificate user wants to get
   int64 CertTTL = 8 [
@@ -4624,12 +4615,7 @@ message OIDCAuthRequest {
   string ProxyAddress = 16 [(gogoproto.jsontag) = "proxy_address,omitempty"];
 
   // attestation_statement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [
-    (gogoproto.jsontag) = "attestation_statement,omitempty",
-    deprecated = true
-  ];
+  teleport.attestation.v1.AttestationStatement attestation_statement = 17 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
@@ -4637,17 +4623,6 @@ message OIDCAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 19 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
-
-  // SshPublicKey is an optional public key to use as the subject of an issued
-  // SSH cert in case of successful auth.
-  bytes ssh_public_key = 20 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
-  // TlsPublicKey is an optional public key to use as the subject of an issued
-  // TLS cert in case of successful auth.
-  bytes tls_public_key = 21 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
-  // SshAttestationStatement is an attestation statement for the given SSH public key.
-  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 22 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
-  // TlsAttestationStatement is an attestation statement for the given TLS public key.
-  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 23 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -4751,12 +4726,7 @@ message SAMLAuthRequest {
   // PublicKey is an optional public key, users want these
   // keys to be signed by auth servers user CA in case
   // of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes PublicKey = 6 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
+  bytes PublicKey = 6 [(gogoproto.jsontag) = "public_key"];
 
   // CertTTL is the TTL of the certificate user wants to get.
   int64 CertTTL = 7 [
@@ -4791,8 +4761,6 @@ message SAMLAuthRequest {
   SAMLConnectorSpecV2 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
 
   // attestation_statement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
 
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
@@ -4801,17 +4769,6 @@ message SAMLAuthRequest {
   // ClientUserAgent is the user agent of the Web browser, used for issuing a
   // DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
-
-  // SshPublicKey is an optional public key to use as the subject of an issued
-  // SSH cert in case of successful auth.
-  bytes ssh_public_key = 19 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
-  // TlsPublicKey is an optional public key to use as the subject of an issued
-  // TLS cert in case of successful auth.
-  bytes tls_public_key = 20 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
-  // SshAttestationStatement is an attestation statement for the given SSH public key.
-  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
-  // TlsAttestationStatement is an attestation statement for the given TLS public key.
-  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -4904,12 +4861,7 @@ message GithubAuthRequest {
   // CSRFToken is used to protect against CSRF attacks.
   string CSRFToken = 4 [(gogoproto.jsontag) = "csrf_token"];
   // PublicKey is an optional public key to sign in case of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes PublicKey = 5 [
-    (gogoproto.jsontag) = "public_key",
-    deprecated = true
-  ];
+  bytes PublicKey = 5 [(gogoproto.jsontag) = "public_key"];
   // CertTTL is TTL of the cert that's generated in case of successful auth.
   int64 CertTTL = 6 [
     (gogoproto.jsontag) = "cert_ttl",
@@ -4939,28 +4891,13 @@ message GithubAuthRequest {
   bool SSOTestFlow = 14 [(gogoproto.jsontag) = "sso_test_flow"];
   // ConnectorSpec is embedded connector spec for use in test flow.
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
-  // AttestationStatement is an attestation statement for the given public key.
-  //
-  // Deprecated: prefer SshAttestationStatement and/or TlsAttestationStatement.
-  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [
-    (gogoproto.jsontag) = "attestation_statement,omitempty",
-    deprecated = true
-  ];
+  // attestation_statement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
   // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
   string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
   // ClientUserAgent is the user agent of the Web browser, used for issuing
   // a DeviceWebToken.
   string ClientUserAgent = 18 [(gogoproto.jsontag) = "client_user_agent,omitempty"];
-  // SshPublicKey is an optional public key to use as the subject of an issued
-  // SSH cert in case of successful auth.
-  bytes ssh_public_key = 19 [(gogoproto.jsontag) = "ssh_pub_key,omitempty"];
-  // TlsPublicKey is an optional public key to use as the subject of an issued
-  // TLS cert in case of successful auth.
-  bytes tls_public_key = 20 [(gogoproto.jsontag) = "tls_pub_key,omitempty"];
-  // SshAttestationStatement is an attestation statement for the given SSH public key.
-  teleport.attestation.v1.AttestationStatement ssh_attestation_statement = 21 [(gogoproto.jsontag) = "ssh_attestation_statement,omitempty"];
-  // TlsAttestationStatement is an attestation statement for the given TLS public key.
-  teleport.attestation.v1.AttestationStatement tls_attestation_statement = 22 [(gogoproto.jsontag) = "tls_attestation_statement,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -6014,30 +5951,6 @@ enum RequireMFAType {
   HARDWARE_KEY_TOUCH_AND_PIN = 5;
 }
 
-// SignatureAlgorithmSuite represents the suite of cryptographic signature algorithms used in the cluster.
-enum SignatureAlgorithmSuite {
-  // SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED represents an unspecified signature algorithm suite.
-  SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED = 0;
-  // SIGNATURE_ALGORITHM_SUITE_LEGACY is the original algorithm suite used in
-  // Teleport, it almost exclusively uses 2048-bit RSA.
-  SIGNATURE_ALGORITHM_SUITE_LEGACY = 1;
-  // SIGNATURE_ALGORITHM_SUITE_BALANCED_V1 aims to strikes a balance between
-  // security, compatibility, and performance. It uses Ed25519 for most SSH
-  // keys, ECDSA on the NIST P256 curve for most TLS keys, and 2048-bit RSA
-  // where necessary for compatibility with third-party software.
-  SIGNATURE_ALGORITHM_SUITE_BALANCED_V1 = 2;
-  // SIGNATURE_ALGORITHM_SUITE_FIPS_V1 is tailored for FIPS compliance. It is
-  // based on the BALANCED_V1 suite but replaces all instances of Ed25519 with
-  // ECDSA on the NIST P256 curve.
-  SIGNATURE_ALGORITHM_SUITE_FIPS_V1 = 3;
-  // SIGNATURE_ALGORITHM_SUITE_HSM_V1 is tailored for clusters using an HSM or
-  // KMS service to back CA private material. It is based on the BALANCED suite
-  // but replaces Ed25519 with ECDSA on the NIST P256 curve for CA keys only,
-  // not for server or client keys. It is also valid to use the LEGACY for FIPS
-  // suites if your cluster uses an HSM or KMS.
-  SIGNATURE_ALGORITHM_SUITE_HSM_V1 = 4;
-}
-
 // Plugin describes a single instance of a Teleport Plugin
 message PluginV1 {
   // kind is the plugin resource kind.
@@ -6717,17 +6630,6 @@ message SAMLIdPServiceProviderSpecV1 {
   // The value can contain service provider specific redirect URL, static state token etc.
   // The value is only applied in the IdP initiated SSO flow.
   string RelayState = 6 [(gogoproto.jsontag) = "relay_state"];
-  // LaunchURLs is used to configure custom landing URLs for service provider. It is useful in
-  // the following scenarios:
-  // 1. If a service provider does not support IdP initiated authentication, launch url can be
-  //    configured to launch users directly into the service provider authentication endpoint.
-  // 2. If a service provider does support IdP initiated authentication, it can be useful if
-  //    that service provider acts as a master authentication service provider for internal services.
-  //    In such case, Teleport administrator can configure launch URL, that lets user pick a specific
-  //    internal service URL from the Log In tile in the UI, which would take them to that particular
-  //    service for authentication instead of directly launching to the master service provider.
-  // Each launch URL value must be an HTTPs endpoint.
-  repeated string LaunchURLs = 7 [(gogoproto.jsontag) = "launch_urls"];
 }
 
 // SAMLAttributeMapping represents SAML service provider requested attribute
@@ -7074,9 +6976,7 @@ message HeadlessAuthentication {
   string user = 2;
 
   // PublicKey is an ssh public key to sign in case of successful auth.
-  //
-  // Deprecated: prefer SshPublicKey and/or TlsPublicKey.
-  bytes public_key = 3 [deprecated = true];
+  bytes public_key = 3;
 
   // State is the headless authentication request state.
   HeadlessAuthenticationState state = 4;
@@ -7086,14 +6986,6 @@ message HeadlessAuthentication {
 
   // ClientIPAddress is the IP address of the client being authenticated.
   string client_ip_address = 6;
-
-  // SshPublicKey is a public key that will be used as the subject of the issued
-  // SSH certificate in case of successful auth. It must be in SSH authorized_keys format.
-  bytes ssh_public_key = 7;
-  // TlsPublicKey is a public key that will be used as the subject of the issued
-  // TLS certificate in case of successful auth. It must be in PEM-encoded
-  // PKCS#1 or PKIX format.
-  bytes tls_public_key = 8;
 }
 
 // HeadlessAuthenticationState is a headless authentication state.
@@ -7189,8 +7081,6 @@ message ServerInfoSpecV1 {
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
 message JamfSpecV1 {
-  reserved 5, 6, 8, 9;
-  reserved "username", "password", "client_id", "client_secret";
   option (gogoproto.equal) = true;
   // Enabled toggles the service on or off.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
@@ -7209,9 +7099,29 @@ message JamfSpecV1 {
   // Example: "https://yourtenant.jamfcloud.com/api".
   // Required.
   string api_endpoint = 4 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
+  // Jamf API username.
+  // Username and password are used to acquire short-lived Jamf Pro API tokens.
+  // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
+  // Prefer using client_id and client_secret.
+  // Either username+password or client_id+client_secret are required.
+  string username = 5 [(gogoproto.jsontag) = "username,omitempty"];
+  // Jamf API password.
+  // Username and password are used to acquire short-lived Jamf Pro API tokens.
+  // See https://developer.jamf.com/jamf-pro/docs/jamf-pro-api-overview.
+  // Prefer using client_id and client_secret.
+  // Either username+password or client_id+client_secret are required.
+  string password = 6 [(gogoproto.jsontag) = "password,omitempty"];
   // Inventory sync entries.
   // If empty a default sync configuration is used.
   repeated JamfInventoryEntry inventory = 7 [(gogoproto.jsontag) = "inventory,omitempty"];
+  // Jamf API client ID.
+  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+  // Either username+password or client_id+client_secret are required.
+  string client_id = 8 [(gogoproto.jsontag) = "client_id,omitempty"];
+  // Jamf API client secret.
+  // See https://developer.jamf.com/jamf-pro/docs/client-credentials.
+  // Either username+password or client_id+client_secret are required.
+  string client_secret = 9 [(gogoproto.jsontag) = "client_secret,omitempty"];
 }
 
 // JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].

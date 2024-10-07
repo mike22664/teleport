@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
@@ -439,6 +440,7 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				reloadBroadcaster: reloadBroadcaster,
 				resolver:          resolver,
 				executablePath:    os.Executable,
+				getEnv:            os.Getenv,
 				alpnUpgradeCache:  alpnUpgradeCache,
 				proxyPingCache:    proxyPingCache,
 			}
@@ -641,9 +643,9 @@ func clientForFacade(
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          sshConfig,
-		Log:                   log,
+		Log:                   logrus.StandardLogger(),
 		InsecureSkipTLSVerify: cfg.Insecure,
-		GetClusterCAs:         client.ClusterCAsFromCertPool(tlsConfig.RootCAs),
+		ClusterCAs:            tlsConfig.RootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -655,7 +657,7 @@ func clientForFacade(
 		// TODO(noah): It'd be ideal to distinguish the proxy addr and auth addr
 		// here to avoid pointlessly hitting the address as an auth server.
 		AuthServers: []utils.NetAddr{*parsedAddr},
-		Log:         log,
+		Log:         logrus.StandardLogger(),
 		Insecure:    cfg.Insecure,
 		ProxyDialer: dialer,
 		DialOpts: []grpc.DialOption{

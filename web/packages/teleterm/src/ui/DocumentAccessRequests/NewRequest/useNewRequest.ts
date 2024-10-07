@@ -346,10 +346,7 @@ function getDefaultSort(kind: ResourceKind): SortType {
 }
 
 export type ResourceKind =
-  | Extract<
-      ResourceIdKind,
-      'node' | 'app' | 'db' | 'kube_cluster' | 'saml_idp_service_provider'
-    >
+  | Extract<ResourceIdKind, 'node' | 'app' | 'db' | 'kube_cluster'>
   | 'role';
 
 export type State = ReturnType<typeof useNewRequest>;

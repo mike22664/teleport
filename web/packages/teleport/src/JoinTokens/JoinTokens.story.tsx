@@ -18,7 +18,8 @@
 
 import React from 'react';
 import { MemoryRouter } from 'react-router';
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
+import { initialize, mswLoader } from 'msw-storybook-addon';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -29,7 +30,10 @@ import { JoinTokens } from './JoinTokens';
 
 export default {
   title: 'Teleport/JoinTokens',
+  loaders: [mswLoader],
 };
+
+initialize();
 
 export const Loaded = () => (
   <Provider>
@@ -40,11 +44,11 @@ export const Loaded = () => (
 Loaded.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.api.joinTokensPath, () => {
-        return HttpResponse.json({ items: tokens });
+      rest.get(cfg.api.joinTokensPath, (req, res, ctx) => {
+        return res.once(ctx.json({ items: tokens }));
       }),
-      http.put(cfg.api.joinTokenYamlPath, () => {
-        return HttpResponse.json(editedToken);
+      rest.put(cfg.api.joinTokenYamlPath, (req, res, ctx) => {
+        return res.once(ctx.json(editedToken));
       }),
     ],
   },

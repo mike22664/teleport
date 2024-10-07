@@ -40,7 +40,7 @@ export function FileListItem(props: FileListItemProps) {
       <Flex justifyContent="space-between" alignItems="center">
         <Flex alignItems="center">
           <Text
-            typography="body3"
+            typography="body2"
             css={`
               word-break: break-all;
             `}
@@ -94,7 +94,7 @@ const Error: FC<PropsWithChildren> = props => {
   return (
     <Flex alignItems="center" mt={1}>
       <Warning size="small" mr={1} color="inherit" />
-      <Text color="error.hover" typography="body3">
+      <Text color="error.hover" typography="body2">
         {props.children}
       </Text>
     </Flex>

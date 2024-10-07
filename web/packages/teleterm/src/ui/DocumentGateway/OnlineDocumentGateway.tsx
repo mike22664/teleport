@@ -18,7 +18,7 @@
 
 import React, { useMemo, useRef } from 'react';
 import { debounce } from 'shared/utils/highbar';
-import { Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
+import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
 import Validation from 'shared/components/Validation';
 import * as Alerts from 'design/Alert';
 
@@ -81,12 +81,14 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   return (
     <Box maxWidth="680px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4" flexWrap="wrap" gap={2}>
-        <H1>Database Connection</H1>
+        <Text typography="h3">Database Connection</Text>
         <ButtonSecondary size="small" onClick={props.disconnect}>
           Close Connection
         </ButtonSecondary>
       </Flex>
-      <H2 mb={2}>Connect with CLI</H2>
+      <Text typography="h4" mb={1}>
+        Connect with CLI
+      </Text>
       <Flex as="form" ref={formRef}>
         <Validation>
           <PortFieldInput
@@ -111,9 +113,9 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
         onButtonClick={props.runCliCommand}
       />
       {$errors}
-      <H2 mt={3} mb={2}>
+      <Text typography="h4" mt={3} mb={1}>
         Connect with GUI
-      </H2>
+      </Text>
       <Text
         // Break long usernames rather than putting an ellipsis.
         css={`

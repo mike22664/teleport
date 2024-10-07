@@ -67,6 +67,7 @@ export function EditBot({
             placeholder="Click to select roles"
             isSearchable
             isMulti
+            isSimpleValue
             isClearable={false}
             value={selectedRoles.map(r => ({
               value: r,

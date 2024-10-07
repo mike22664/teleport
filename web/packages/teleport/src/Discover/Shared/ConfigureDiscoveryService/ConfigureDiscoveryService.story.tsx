@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { http, HttpResponse } from 'msw';
+import { rest } from 'msw';
 import { MemoryRouter } from 'react-router';
 import { Info } from 'design/Alert';
 
@@ -59,7 +59,9 @@ export const WithCreateConfig = () => {
 WithCreateConfig.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
+      rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
     ],
   },
 };
@@ -70,18 +72,15 @@ export const WithCreateConfigFailed = () => {
 WithCreateConfigFailed.parameters = {
   msw: {
     handlers: [
-      http.post(
-        cfg.api.discoveryConfigPath,
-        () =>
-          HttpResponse.json(
-            {
-              message: 'Whoops, creating config error',
-            },
-            { status: 403 }
-          ),
-        { once: true }
+      rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
+        res.once(
+          ctx.status(403),
+          ctx.json({ message: 'Whoops, creating config error' })
+        )
       ),
-      http.post(cfg.api.discoveryConfigPath, () => HttpResponse.json({})),
+      rest.post(cfg.api.discoveryConfigPath, (req, res, ctx) =>
+        res(ctx.json({}))
+      ),
     ],
   },
 };
@@ -126,7 +125,7 @@ const Component = ({
       name: '',
       kind,
       icon: null,
-      keywords: [],
+      keywords: '',
       event: DiscoverEventResource.Ec2Instance,
       nodeMeta: {
         location: ServerLocation.Aws,
