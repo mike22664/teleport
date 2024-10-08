@@ -75,7 +75,7 @@ const (
 	PluginTypeSCIM = "scim"
 	// PluginTypeDatadog indicates the Datadog Incident Management plugin
 	PluginTypeDatadog = "datadog"
-	// PluginTypeMSTeams indicates a generic Microsoft Teams integration
+	// PluginTypeMSTeams indicates a Microsoft Teams integration
 	PluginTypeMSTeams = "msteams"
 )
 
