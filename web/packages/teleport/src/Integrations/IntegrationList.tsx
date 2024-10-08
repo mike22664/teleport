@@ -114,6 +114,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
                         View Status
                       </MenuItem>
                     )}
+                    {item.kind === 'msteams' && (
                       <MenuItem onClick={() => function () {
 			  api.fetch(cfg.getMsTeamsAppZipRoute(clusterId, item.name))
 			      .then(response => response.blob())
@@ -127,10 +128,10 @@ export function IntegrationList(props: Props<IntegrationLike>) {
 				  document.body.removeChild(a);
 				  URL.revokeObjectURL(url);
 			      });
-		      }()
-		      }>
-                      Download app.zip
-                    </MenuItem>
+		      }()}>
+                        Download app.zip
+		      </MenuItem>
+                    )}
                     <MenuItem onClick={() => props.onDeletePlugin(item)}>
                       Delete...
                     </MenuItem>
