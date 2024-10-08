@@ -7520,6 +7520,7 @@ message OktaOptions {
 message AccessGraphSync {
   // AWS is a configuration for AWS Access Graph service poll service.
   repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  // Azure is a configuration for the Azure Access Graph service poll service.
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
@@ -7530,4 +7531,8 @@ message AccessGraphAWSSync {
   AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
   // Integration is the integration name used to generate credentials to interact with AWS APIs.
   string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
+}
+
+message AccessGraphAzureSync {
+  repeated string Regions = 1 [(gogoproto.jsontag) = "regions,omitempty"];
 }
