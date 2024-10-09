@@ -7521,6 +7521,7 @@ message AccessGraphSync {
   // AWS is a configuration for AWS Access Graph service poll service.
   repeated AccessGraphAWSSync AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
   // Azure is a configuration for the Azure Access Graph service poll service.
+  repeated AccessGraphAzureSync Azure = 2 [(gogoproto.jsontag) = "aws,omitempty"];
 }
 
 // AccessGraphAWSSync is a configuration for AWS Access Graph service poll service.
@@ -7534,5 +7535,8 @@ message AccessGraphAWSSync {
 }
 
 message AccessGraphAzureSync {
+  // Regions are Azure regions to import resources from.
   repeated string Regions = 1 [(gogoproto.jsontag) = "regions,omitempty"];
+  // Integration is the integration name used to generate credentials to interact with AWS APIs.
+  string Integration = 4 [(gogoproto.jsontag) = "integration,omitempty"];
 }

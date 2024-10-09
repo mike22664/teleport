@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	azure_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/azure-sync"
 	"io"
 	"sync"
 	"time"
@@ -467,6 +468,7 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 		return fetchers, nil
 	}
 
+	// Load all AWS fetchers
 	for _, awsFetcher := range matchers.AccessGraph.AWS {
 		var assumeRole *aws_sync.AssumeRole
 		if awsFetcher.AssumeRole != nil {
@@ -485,6 +487,20 @@ func (s *Server) accessGraphFetchersFromMatchers(ctx context.Context, matchers M
 				DiscoveryConfigName: discoveryConfigName,
 			},
 		)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		fetchers = append(fetchers, fetcher)
+	}
+
+	for _, fetcherCfg := range matchers.AccessGraph.Azure {
+		cfg := azure_sync.Config{
+			Regions:             fetcherCfg.Regions,
+			Integration:         fetcherCfg.Integration,
+			DiscoveryConfigName: discoveryConfigName,
+		}
+		fetcher, err := azure_sync.NewAzureFetcher(cfg)
 		if err != nil {
 			errs = append(errs, err)
 			continue

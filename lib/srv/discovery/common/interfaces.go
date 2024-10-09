@@ -36,3 +36,16 @@ type Fetcher interface {
 	// Cloud returns the cloud the fetcher is operating.
 	Cloud() string
 }
+
+type TAGSync interface {
+	// Poll polls all AWS resources and returns the result.
+	Poll(context.Context, Features) (*Resources, error)
+	// Status reports the last known status of the fetcher.
+	Status() (uint64, error)
+	// DiscoveryConfigName returns the name of the Discovery Config.
+	DiscoveryConfigName() string
+	// IsFromDiscoveryConfig returns true if the fetcher is associated with a Discovery Config.
+	IsFromDiscoveryConfig() bool
+	// GetAccountID returns the AWS account ID.
+	GetAccountID() string
+}

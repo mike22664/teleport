@@ -6,6 +6,9 @@ import (
 )
 
 type Config struct {
+	Regions             []string
+	Integration         string
+	DiscoveryConfigName string
 }
 
 type Resources struct {
