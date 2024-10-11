@@ -93,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/authz"
@@ -4317,8 +4318,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var peerQUICTransport *quic.Transport
 	if !process.Config.Proxy.DisableReverseTunnel {
 		if listeners.proxyPeer != nil {
-			// TODO(espadolini): allow this when the implementation is merged
-			if false && process.Config.Proxy.QUICProxyPeering {
+			// QUIC uses TLS 1.3 which is currently not allowed in FIPS builds.
+			//
+			// TODO(espadolini): allow QUIC in Go 1.24 (as TLS 1.3 should be
+			// allowed then)
+			if !native.IsBoringBinary() && process.Config.Proxy.QUICProxyPeering {
 				// the stateless reset key is important in case there's a crash
 				// so peers can be told to close their side of the connections
 				// instead of having to wait for a timeout; for this reason, we
@@ -4773,7 +4777,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 				logger.InfoContext(process.ExitContext(), "Starting QUIC peer proxy service.", "local_addr", logutils.StringerAttr(peerQUICTransport.Conn.LocalAddr()))
 				err := peerQUICServer.Serve(peerQUICTransport)
-				if err != nil {
+				if err != nil && !errors.Is(err, quic.ErrServerClosed) {
 					return trace.Wrap(err)
 				}
 
