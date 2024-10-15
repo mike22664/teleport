@@ -715,7 +715,11 @@ func (c *Client) getConnections(proxyIDs []string) ([]clientConn, bool, error) {
 // connect dials a new connection to proxyAddr.
 func (c *Client) connect(peerID string, peerAddr string, supportsQUIC bool) (clientConn, error) {
 	if supportsQUIC && c.config.QUICTransport != nil {
-		panic("QUIC proxy peering is not implemented")
+		conn, err := c.connectQuic(peerID, peerAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conn, nil
 	}
 	tlsConfig := utils.TLSConfig(c.config.TLSCipherSuites)
 	tlsConfig.ServerName = apiutils.EncodeClusterName(c.config.ClusterName)
