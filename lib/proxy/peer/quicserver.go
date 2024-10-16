@@ -296,51 +296,24 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 		return
 	}
 
-	if req.GetTimestamp() != nil {
-		if time.Since(req.GetTimestamp().AsTime()).Abs() > quicTimestampGraceWindow {
-			log.WarnContext(c.Context(), "0-RTT request has out of sync timestamp, requiring full handshake.",
-				"request_timestamp", req.GetTimestamp().AsTime(),
-			)
-			select {
-			case <-c.HandshakeComplete():
-			case <-c.Context().Done():
-				return
-			}
-		}
-	} else {
+	if requestTimestamp := req.GetTimestamp().AsTime(); time.Since(requestTimestamp).Abs() > quicTimestampGraceWindow {
+		log.WarnContext(c.Context(),
+			"Dial request has out of sync timestamp, 0-RTT performance will be impacted.",
+			"request_timestamp", requestTimestamp,
+		)
 		select {
 		case <-c.HandshakeComplete():
 		case <-c.Context().Done():
 			return
-		default:
-			log.WarnContext(c.Context(), "0-RTT request is missing timestamp, requiring full handshake.")
-			select {
-			case <-c.HandshakeComplete():
-			case <-c.Context().Done():
-				return
-			}
 		}
 	}
-	if req.GetNonce() != 0 {
-		// a replayed request is always wrong even after a full handshake
-		if !s.replayStore.add(req.GetNonce(), time.Now()) {
-			log.ErrorContext(c.Context(), "Request is reusing a nonce, rejecting.", "nonce", req.GetNonce())
-			sendErr(trace.BadParameter("reused or invalid nonce"))
-			return
-		}
-	} else {
-		select {
-		case <-c.HandshakeComplete():
-		case <-c.Context().Done():
-			return
-		default:
-			log.WarnContext(c.Context(), "0-RTT request is missing nonce, requiring full handshake.")
-			select {
-			case <-c.HandshakeComplete():
-			case <-c.Context().Done():
-				return
-			}
-		}
+
+	// a replayed request is always wrong even after a full handshake, the
+	// replay might've happened before the legitimate request
+	if !s.replayStore.add(req.GetNonce(), time.Now()) {
+		log.ErrorContext(c.Context(), "Request is reusing a nonce, rejecting.", "nonce", req.GetNonce())
+		sendErr(trace.BadParameter("reused or invalid nonce"))
+		return
 	}
 
 	_, clusterName, ok := strings.Cut(req.GetServerId(), ".")

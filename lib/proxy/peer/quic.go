@@ -116,11 +116,12 @@ initial resumed handshake including the 0-RTT data.
 Since proxy peering is at its most useful when dealing with connections across
 regions, it's very advantageous to take advantage of the latency reduction
 offered by 0-RTT; to prevent any problems caused by replay attacks, the client
-(when using 0-RTT data) must include a timestamp and a nonce in the request; the
-server will require a full handshake if the timestamp is too far off the local
-time, and then will check the nonce against a list of nonces received recently.
-If the nonce was already used, the dial request is rejected (potentially
-rejecting the legitimate dial attempt, which will increase the chance that
+must include a timestamp and a nonce in the request: the server will require a
+full handshake if the timestamp is too far off the local time (to prevent
+complete cluster outages in case of clock drift), and then will check the nonce
+against a list of nonces received recently. If the nonce was already used, the
+dial request is rejected (potentially rejecting the legitimate dial attempt if
+it happens to be processed after a replay, which will increase the chance that
 someone will notice that something is wrong), otherwise the nonce is added to
 the list and the dial request is accepted. This makes it so that each dial
 request sent as 0-RTT can result in at most one connection opened through an
@@ -128,7 +129,9 @@ agent tunnel.
 
 The client should make sure to not send data belonging to the connection as part
 of the early data; this will cause no further delays if the client intends to
-wait for the server to reply to the dial request.
+wait for the server to reply to the dial request. A client that wants to make
+use of multiplexing should take care to not accidentally send more than one dial
+request as 0-RTT in a single connection.
 
 The protocol doesn't currently take advantage of early server-side data for
 non-resumed connections, so considerations around the security of "0.5-RTT" data
