@@ -210,16 +210,21 @@ func (s *QUICServer) handleConn(c quic.EarlyConnection) {
 		"remote_addr", c.RemoteAddr().String(),
 		"internal_id", uuid.NewString(),
 	)
-	defer log.DebugContext(c.Context(), "Peer connection closed.", "error", context.Cause(c.Context()))
-
-	defer c.CloseWithError(0, "")
-	defer context.AfterFunc(s.runCtx, func() { _ = c.CloseWithError(0, "") })()
-
 	state := c.ConnectionState()
-	log.InfoContext(s.serveCtx, "Handling new peer connection.",
+	log.InfoContext(s.serveCtx,
+		"Handling new peer connection.",
 		"gso", state.GSO,
 		"used_0rtt", state.Used0RTT,
 	)
+	defer func() {
+		log.DebugContext(c.Context(),
+			"Peer connection closed.",
+			"error", context.Cause(c.Context()),
+		)
+	}()
+
+	defer c.CloseWithError(0, "")
+	defer context.AfterFunc(s.runCtx, func() { _ = c.CloseWithError(0, "") })()
 
 	for {
 		// TODO(espadolini): stop accepting new streams once s.serveCtx is
