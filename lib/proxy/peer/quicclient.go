@@ -286,7 +286,9 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 	}
 
 	detach := context.AfterFunc(c.runCtx, func() { _ = sc.Close() })
-	// conn.Context() is canceled when the connection is closed
+	// conn.Context() is canceled when the connection is closed; wg is currently
+	// at least at 1 because we add one count for the duration of this function,
+	// so we're always allowed to add another one here
 	c.wg.Add(1)
 	context.AfterFunc(conn.Context(), func() {
 		log.Debug("Connection closed.")
