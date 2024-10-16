@@ -24,6 +24,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"slices"
 	"sync"
@@ -32,7 +33,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/quic-go/quic-go"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -45,11 +45,11 @@ import (
 )
 
 func (c *Client) connectQuic(peerID string, peerAddr string) (*quicClientConn, error) {
-	log := c.config.Log.WithFields(logrus.Fields{
-		"peer_id":   peerID,
-		"peer_addr": peerAddr,
-	})
-	log.Info("Setting up a QUIC client conn.")
+	log := c.config.Log.With(
+		"peer_id", peerID,
+		"peer_addr", peerAddr,
+	)
+	log.InfoContext(c.ctx, "Setting up a QUIC client conn.")
 
 	udpAddr, err := net.ResolveUDPAddr("udp", peerAddr)
 	if err != nil {
@@ -106,7 +106,7 @@ type quicClientConn struct {
 	id   string
 	addr *net.UDPAddr
 
-	log logrus.FieldLogger
+	log *slog.Logger
 
 	transport *quic.Transport
 
@@ -177,7 +177,7 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 		return nil, trace.Wrap(err)
 	}
 
-	log := c.log.WithField("conn_nonce", nonce)
+	log := c.log.With("conn_nonce", nonce)
 
 	req := &quicpeeringv1a.DialRequest{
 		ServerId: nodeID,
@@ -212,9 +212,13 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 	dialCtx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 
-	log.Debug("Dialing peer proxy.")
+	log.DebugContext(dialCtx, "Dialing peer proxy.")
 	earlyConn, err := c.transport.DialEarly(dialCtx, c.addr, tlsConfig, c.quicConfig)
 	if err != nil {
+		if errors.Is(err, wrongProxyError{}) {
+			const duplicatePeerMsg = duplicatePeerMsg // to appease sloglint
+			log.ErrorContext(dialCtx, duplicatePeerMsg)
+		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -226,7 +230,10 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 		conn.CloseWithError(0, "")
 	}()
 
-	log.WithField("gso", conn.ConnectionState().GSO).Debug("Opened connection.")
+	log.DebugContext(conn.Context(),
+		"Opened connection.",
+		"gso", conn.ConnectionState().GSO,
+	)
 
 	respBuf, stream, err := quicSendUnary(deadline, sizedReqBuf, conn)
 	if err != nil {
@@ -234,9 +241,16 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 			return nil, trace.Wrap(err)
 		}
 
-		log.Info("0-RTT attempt rejected, retrying with a full handshake.")
+		log.InfoContext(dialCtx, "0-RTT attempt rejected, retrying with a full handshake.")
 		nextConn, err := earlyConn.NextConnection(dialCtx)
 		if err != nil {
+			if errors.Is(err, wrongProxyError{}) {
+				// if we are hitting a QUIC-aware load balancer(?) it's possible
+				// to reach an unexpected peer proxy after a failed 0-RTT
+				// (failed because we got sent to the "wrong" peer)
+				const duplicatePeerMsg = duplicatePeerMsg // to appease sloglint
+				log.ErrorContext(dialCtx, duplicatePeerMsg)
+			}
 			return nil, trace.Wrap(err)
 		}
 		conn, earlyConn = nextConn, nil
@@ -245,14 +259,17 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 		if conn.Context().Err() != nil {
 			return nil, trace.Wrap(context.Cause(conn.Context()))
 		}
-		log.Debug("Full handshake completed after 0-RTT rejection.")
+		log.DebugContext(conn.Context(), "Full handshake completed after 0-RTT rejection.")
 		respBuf, stream, err = quicSendUnary(deadline, sizedReqBuf, conn)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	log.WithField("used_0rtt", conn.ConnectionState().Used0RTT).Debug("Exchanged dial request and response.")
+	log.DebugContext(conn.Context(),
+		"Exchanged dial request and response.",
+		"used_0rtt", conn.ConnectionState().Used0RTT,
+	)
 
 	resp := new(quicpeeringv1a.DialResponse)
 	if err := proto.Unmarshal(respBuf, resp); err != nil {
@@ -281,8 +298,6 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 
 		src: src,
 		dst: dst,
-
-		log: log,
 	}
 
 	detach := context.AfterFunc(c.runCtx, func() { _ = sc.Close() })
@@ -291,7 +306,7 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 	// so we're always allowed to add another one here
 	c.wg.Add(1)
 	context.AfterFunc(conn.Context(), func() {
-		log.Debug("Connection closed.")
+		log.DebugContext(conn.Context(), "Connection closed.")
 		c.wg.Done()
 		// remove the connection from the runCtx cancellation tree
 		detach()
@@ -344,8 +359,6 @@ type streamConn struct {
 
 	src net.Addr
 	dst net.Addr
-
-	log logrus.FieldLogger
 }
 
 var _ net.Conn = (*streamConn)(nil)
@@ -409,8 +422,20 @@ func verifyPeerCertificateIsSpecificProxy(peerID string) verifyPeerCertificateFu
 		}
 
 		if clientIdentity.Username != peerID {
-			return trace.AccessDenied("expected proxy %v, got %q", peerID, clientIdentity.Username)
+			return trace.Wrap(wrongProxyError{})
 		}
 		return nil
+	}
+}
+
+type wrongProxyError struct{}
+
+func (wrongProxyError) Error() string {
+	return "connected to unexpected proxy"
+}
+
+func (e wrongProxyError) Unwrap() error {
+	return &trace.AccessDeniedError{
+		Message: e.Error(),
 	}
 }
