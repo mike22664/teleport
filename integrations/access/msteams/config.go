@@ -25,19 +25,15 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/access/msteams/msapi"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
 // Config represents plugin configuration
 type Config struct {
 	common.BaseConfig
 	// Client is the Teleport API client.
-	Client     teleport.Client
-	Teleport   lib.TeleportConfig
-	Recipients common.RawRecipientsMap `toml:"role_to_recipients"`
-	Log        logger.Config
-	MSAPI      msapi.Config `toml:"msapi"`
-	Preload    bool         `toml:"preload"`
+	Client  teleport.Client
+	MSAPI   msapi.Config `toml:"msapi"`
+	Preload bool         `toml:"preload"`
 
 	// StatusSink receives any status updates from the plugin for
 	// further processing. Status updates will be ignored if not set.
