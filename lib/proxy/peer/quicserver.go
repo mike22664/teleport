@@ -261,6 +261,10 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 		if err != nil {
 			return
 		}
+		if len(errBuf) > quicMaxMessageSize {
+			log.WarnContext(c.Context(), "refusing to send oversized error message (this is a bug)")
+			return
+		}
 		st.SetWriteDeadline(time.Now().Add(10 * time.Second))
 		if _, err := st.Write(binary.LittleEndian.AppendUint32(nil, uint32(len(errBuf)))); err != nil {
 			return

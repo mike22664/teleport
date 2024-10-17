@@ -198,6 +198,10 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if len(sizedReqBuf)-4 > quicMaxMessageSize {
+		log.WarnContext(context.Background(), "refusing to send oversized dial request (this is a bug)")
+		return nil, trace.LimitExceeded("oversized dial request")
+	}
 	binary.LittleEndian.PutUint32(sizedReqBuf, uint32(len(sizedReqBuf)-4))
 
 	rootCAs, err := c.getRootCAs()
@@ -341,7 +345,7 @@ func quicSendUnary(deadline time.Time, sizedReqBuf []byte, conn quic.Connection)
 		return nil, nil, trace.Wrap(err)
 	}
 	if respSize > quicMaxMessageSize {
-		return nil, nil, trace.BadParameter("oversized response message")
+		return nil, nil, trace.LimitExceeded("oversized response message")
 	}
 	respBuf := make([]byte, respSize)
 	if _, err := io.ReadFull(stream, respBuf); err != nil {
