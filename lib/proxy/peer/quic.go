@@ -23,7 +23,11 @@ import (
 )
 
 const (
-	quicMaxIdleTimeout  = 30 * time.Second
+	// quicMaxIdleTimeout is the arbitrary timeout after which a QUIC connection
+	// that hasn't received data is presumed to be lost to the aether.
+	quicMaxIdleTimeout = 30 * time.Second
+	// quicKeepAlivePeriod is the interval of QUIC keepalive packets sent if the
+	// connection is otherwise idle.
 	quicKeepAlivePeriod = 5 * time.Second
 
 	quicMaxReceiveWindow   = quicvarint.Max

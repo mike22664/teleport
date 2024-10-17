@@ -172,7 +172,7 @@ func NewQUICServer(cfg QUICServerConfig) (*QUICServer, error) {
 
 // Serve opens a listener and serves incoming connection. Returns after calling
 // Close or Shutdown.
-func (s *QUICServer) Serve(t *quic.Transport) error {
+func (s *QUICServer) Serve(transport *quic.Transport) error {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
@@ -182,7 +182,7 @@ func (s *QUICServer) Serve(t *quic.Transport) error {
 	defer s.wg.Done()
 	s.mu.Unlock()
 
-	lis, err := t.ListenEarly(s.tlsConfig, s.quicConfig)
+	lis, err := transport.ListenEarly(s.tlsConfig, s.quicConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -203,58 +203,57 @@ func (s *QUICServer) Serve(t *quic.Transport) error {
 	}
 }
 
-func (s *QUICServer) handleConn(c quic.EarlyConnection) {
+func (s *QUICServer) handleConn(conn quic.EarlyConnection) {
 	defer s.wg.Done()
 
 	log := s.log.With(
-		"remote_addr", c.RemoteAddr().String(),
+		"remote_addr", conn.RemoteAddr().String(),
 		"internal_id", uuid.NewString(),
 	)
-	state := c.ConnectionState()
-	log.InfoContext(c.Context(),
+	state := conn.ConnectionState()
+	log.InfoContext(conn.Context(),
 		"handling new peer connection",
 		"gso", state.GSO,
 		"used_0rtt", state.Used0RTT,
 	)
 	defer func() {
-		log.DebugContext(c.Context(),
+		log.DebugContext(conn.Context(),
 			"peer connection closed",
-			"error", context.Cause(c.Context()),
+			"error", context.Cause(conn.Context()),
 		)
 	}()
 
-	defer c.CloseWithError(0, "")
-	defer context.AfterFunc(s.runCtx, func() { _ = c.CloseWithError(0, "") })()
+	defer conn.CloseWithError(0, "")
+	defer context.AfterFunc(s.runCtx, func() { _ = conn.CloseWithError(0, "") })()
 
 	for {
 		// TODO(espadolini): stop accepting new streams once s.serveCtx is
 		// canceled, once quic-go gains the ability to change the amount of
 		// available streams during a connection (so we can set it to 0)
-		st, err := c.AcceptStream(context.Background())
+		st, err := conn.AcceptStream(context.Background())
 		if err != nil {
-			log.DebugContext(c.Context(), "error accepting a stream", "error", err)
+			log.DebugContext(conn.Context(), "error accepting a stream", "error", err)
 			return
 		}
 
 		s.wg.Add(1)
-		go s.handleStream(st, c, log)
+		go s.handleStream(st, conn, log)
 	}
 }
 
-func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *slog.Logger) {
+func (s *QUICServer) handleStream(stream quic.Stream, conn quic.EarlyConnection, log *slog.Logger) {
 	defer s.wg.Done()
 
-	log = log.With("stream_id", st.StreamID())
-	defer log.DebugContext(c.Context(), "done handling stream")
+	log = log.With("stream_id", stream.StreamID())
+	log.DebugContext(conn.Context(), "handling stream")
+	defer log.DebugContext(conn.Context(), "done handling stream")
 
-	defer st.CancelRead(0)
-	defer st.CancelWrite(0)
-
-	log.DebugContext(c.Context(), "handling stream")
+	defer stream.CancelRead(0)
+	defer stream.CancelWrite(0)
 
 	sendErr := func(toSend error) {
-		st.CancelRead(0)
-		defer st.CancelWrite(0)
+		stream.CancelRead(0)
+		defer stream.CancelWrite(0)
 		errBuf, err := proto.Marshal(&quicpeeringv1a.DialResponse{
 			Status: status.Convert(trail.ToGRPC(toSend)).Proto(),
 		})
@@ -262,52 +261,52 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 			return
 		}
 		if len(errBuf) > quicMaxMessageSize {
-			log.WarnContext(c.Context(), "refusing to send oversized error message (this is a bug)")
+			log.WarnContext(conn.Context(), "refusing to send oversized error message (this is a bug)")
 			return
 		}
-		st.SetWriteDeadline(time.Now().Add(quicErrorResponseTimeout))
-		if _, err := st.Write(binary.LittleEndian.AppendUint32(nil, uint32(len(errBuf)))); err != nil {
+		stream.SetWriteDeadline(time.Now().Add(quicErrorResponseTimeout))
+		if _, err := stream.Write(binary.LittleEndian.AppendUint32(nil, uint32(len(errBuf)))); err != nil {
 			return
 		}
-		if _, err := st.Write(errBuf); err != nil {
+		if _, err := stream.Write(errBuf); err != nil {
 			return
 		}
-		if err := st.Close(); err != nil {
+		if err := stream.Close(); err != nil {
 			return
 		}
 	}
 
-	st.SetReadDeadline(time.Now().Add(quicRequestTimeout))
+	stream.SetReadDeadline(time.Now().Add(quicRequestTimeout))
 	var reqLen uint32
-	if err := binary.Read(st, binary.LittleEndian, &reqLen); err != nil {
-		log.DebugContext(c.Context(), "failed to read request size", "error", err)
+	if err := binary.Read(stream, binary.LittleEndian, &reqLen); err != nil {
+		log.DebugContext(conn.Context(), "failed to read request size", "error", err)
 		return
 	}
 	if reqLen >= quicMaxMessageSize {
-		log.WarnContext(c.Context(), "received oversized request", "request_len", reqLen)
+		log.WarnContext(conn.Context(), "received oversized request", "request_len", reqLen)
 		return
 	}
 	reqBuf := make([]byte, reqLen)
-	if _, err := io.ReadFull(st, reqBuf); err != nil {
-		log.DebugContext(c.Context(), "failed to read request", "error", err)
+	if _, err := io.ReadFull(stream, reqBuf); err != nil {
+		log.DebugContext(conn.Context(), "failed to read request", "error", err)
 		return
 	}
-	st.SetReadDeadline(time.Time{})
+	stream.SetReadDeadline(time.Time{})
 
 	req := new(quicpeeringv1a.DialRequest)
 	if err := proto.Unmarshal(reqBuf, req); err != nil {
-		log.WarnContext(c.Context(), "failed to unmarshal request", "error", err)
+		log.WarnContext(conn.Context(), "failed to unmarshal request", "error", err)
 		return
 	}
 
 	if requestTimestamp := req.GetTimestamp().AsTime(); time.Since(requestTimestamp).Abs() > quicTimestampGraceWindow {
-		log.WarnContext(c.Context(),
+		log.WarnContext(conn.Context(),
 			"dial request has out of sync timestamp, 0-RTT performance will be impacted",
 			"request_timestamp", requestTimestamp,
 		)
 		select {
-		case <-c.HandshakeComplete():
-		case <-c.Context().Done():
+		case <-conn.HandshakeComplete():
+		case <-conn.Context().Done():
 			return
 		}
 	}
@@ -315,7 +314,7 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 	// a replayed request is always wrong even after a full handshake, the
 	// replay might've happened before the legitimate request
 	if !s.replayStore.add(req.GetNonce(), time.Now()) {
-		log.ErrorContext(c.Context(), "request is reusing a nonce, rejecting", "nonce", req.GetNonce())
+		log.ErrorContext(conn.Context(), "request is reusing a nonce, rejecting", "nonce", req.GetNonce())
 		sendErr(trace.BadParameter("reused or invalid nonce"))
 		return
 	}
@@ -346,29 +345,29 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 
 	var eg errgroup.Group
 	eg.Go(func() error {
-		defer st.Close()
+		defer stream.Close()
 		// an empty protobuf message has an empty wire encoding, so by sending a
 		// size of 0 (i.e. four zero bytes) we are sending an empty DialResponse
 		// with an empty Status, which signifies a successful dial
-		if _, err := st.Write(binary.LittleEndian.AppendUint32(nil, 0)); err != nil {
+		if _, err := stream.Write(binary.LittleEndian.AppendUint32(nil, 0)); err != nil {
 			return trace.Wrap(err)
 		}
-		_, err := io.Copy(st, nodeConn)
+		_, err := io.Copy(stream, nodeConn)
 		return trace.Wrap(err)
 	})
 	eg.Go(func() error {
-		defer st.CancelRead(0)
+		defer stream.CancelRead(0)
 
 		// wait for the handshake before forwarding application data from the
 		// client; the client shouldn't be sending application data as 0-RTT
 		// anyway, but just in case
 		select {
-		case <-c.HandshakeComplete():
-		case <-c.Context().Done():
-			return trace.Wrap(context.Cause(c.Context()))
+		case <-conn.HandshakeComplete():
+		case <-conn.Context().Done():
+			return trace.Wrap(context.Cause(conn.Context()))
 		}
 
-		_, err := io.Copy(nodeConn, st)
+		_, err := io.Copy(nodeConn, stream)
 		return trace.Wrap(err)
 	})
 	_ = eg.Wait()
@@ -397,33 +396,37 @@ func (s *QUICServer) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// replayStore will keep track of nonces for at least twice as much time as
-// [quicNoncePersistence], by storing them in a map and swapping out the map as
-// needed.
+// replayStore will keep track of nonces for at least as much time as
+// [quicNoncePersistence]. Nonces are added to a "current" set until the oldest
+// item in it is older than the period, at which point the set is moved into a
+// "previous" slot. After the next "current" set ages out, the previous set is
+// cleared. This saves us from having to keep track of individual expiration
+// times.
 type replayStore struct {
-	mu   sync.Mutex
-	t    time.Time
-	cur  map[uint64]struct{}
-	prev map[uint64]struct{}
+	mu sync.Mutex
+
+	currentTime time.Time
+	currentSet  map[uint64]struct{}
+	previousSet map[uint64]struct{}
 }
 
 func (r *replayStore) add(nonce uint64, now time.Time) (added bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if now.Sub(r.t) > quicNoncePersistence {
-		r.t = now
-		r.prev, r.cur = r.cur, r.prev
-		clear(r.cur)
+	if now.Sub(r.currentTime) > quicNoncePersistence {
+		r.currentTime = now
+		r.previousSet, r.currentSet = r.currentSet, r.previousSet
+		clear(r.currentSet)
 	}
-	if _, ok := r.prev[nonce]; ok {
+	if _, ok := r.previousSet[nonce]; ok {
 		return false
 	}
-	if _, ok := r.cur[nonce]; ok {
+	if _, ok := r.currentSet[nonce]; ok {
 		return false
 	}
-	if r.cur == nil {
-		r.cur = make(map[uint64]struct{})
+	if r.currentSet == nil {
+		r.currentSet = make(map[uint64]struct{})
 	}
-	r.cur[nonce] = struct{}{}
+	r.currentSet[nonce] = struct{}{}
 	return true
 }
