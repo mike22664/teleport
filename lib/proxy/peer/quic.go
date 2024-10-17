@@ -133,10 +133,11 @@ request sent as 0-RTT can result in at most one connection opened through an
 agent tunnel.
 
 The client should make sure to not send data belonging to the connection as part
-of the early data; this will cause no further delays if the client intends to
-wait for the server to reply to the dial request. A client that wants to make
-use of multiplexing should take care to not accidentally send more than one dial
-request as 0-RTT in a single connection.
+of the early data, as an additional layer against replay attacks; this will
+cause no further delays if the client intends to wait for the server to reply to
+the dial request. A client that wants to make use of multiplexing should take
+care to not accidentally send more than one dial request as 0-RTT in a single
+connection, to keep the effort needed to handle potential replays at a minimum.
 
 The protocol doesn't currently take advantage of early server-side data for
 non-resumed connections, so considerations around the security of "0.5-RTT" data
