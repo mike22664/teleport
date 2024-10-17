@@ -211,14 +211,14 @@ func (s *QUICServer) handleConn(c quic.EarlyConnection) {
 		"internal_id", uuid.NewString(),
 	)
 	state := c.ConnectionState()
-	log.InfoContext(s.serveCtx,
-		"Handling new peer connection.",
+	log.InfoContext(c.Context(),
+		"handling new peer connection",
 		"gso", state.GSO,
 		"used_0rtt", state.Used0RTT,
 	)
 	defer func() {
 		log.DebugContext(c.Context(),
-			"Peer connection closed.",
+			"peer connection closed",
 			"error", context.Cause(c.Context()),
 		)
 	}()
@@ -232,7 +232,7 @@ func (s *QUICServer) handleConn(c quic.EarlyConnection) {
 		// available streams during a connection (so we can set it to 0)
 		st, err := c.AcceptStream(context.Background())
 		if err != nil {
-			log.DebugContext(c.Context(), "Got an error accepting a stream.", "error", err)
+			log.DebugContext(c.Context(), "error accepting a stream", "error", err)
 			return
 		}
 
@@ -245,12 +245,12 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 	defer s.wg.Done()
 
 	log = log.With("stream_id", st.StreamID())
-	defer log.DebugContext(c.Context(), "Done handling stream.")
+	defer log.DebugContext(c.Context(), "done handling stream")
 
 	defer st.CancelRead(0)
 	defer st.CancelWrite(0)
 
-	log.DebugContext(c.Context(), "Handling stream.")
+	log.DebugContext(c.Context(), "handling stream")
 
 	sendErr := func(toSend error) {
 		st.CancelRead(0)
@@ -276,29 +276,29 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 	st.SetReadDeadline(time.Now().Add(10 * time.Second))
 	var reqLen uint32
 	if err := binary.Read(st, binary.LittleEndian, &reqLen); err != nil {
-		log.DebugContext(c.Context(), "Failed to read request size.", "error", err)
+		log.DebugContext(c.Context(), "failed to read request size", "error", err)
 		return
 	}
 	if reqLen >= quicMaxMessageSize {
-		log.WarnContext(c.Context(), "Received oversized request.", "request_len", reqLen)
+		log.WarnContext(c.Context(), "received oversized request", "request_len", reqLen)
 		return
 	}
 	reqBuf := make([]byte, reqLen)
 	if _, err := io.ReadFull(st, reqBuf); err != nil {
-		log.DebugContext(c.Context(), "Failed to read request.", "error", err)
+		log.DebugContext(c.Context(), "failed to read request", "error", err)
 		return
 	}
 	st.SetReadDeadline(time.Time{})
 
 	req := new(quicpeeringv1a.DialRequest)
 	if err := proto.Unmarshal(reqBuf, req); err != nil {
-		log.WarnContext(c.Context(), "Failed to unmarshal request.", "error", err)
+		log.WarnContext(c.Context(), "failed to unmarshal request", "error", err)
 		return
 	}
 
 	if requestTimestamp := req.GetTimestamp().AsTime(); time.Since(requestTimestamp).Abs() > quicTimestampGraceWindow {
 		log.WarnContext(c.Context(),
-			"Dial request has out of sync timestamp, 0-RTT performance will be impacted.",
+			"dial request has out of sync timestamp, 0-RTT performance will be impacted",
 			"request_timestamp", requestTimestamp,
 		)
 		select {
@@ -311,7 +311,7 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 	// a replayed request is always wrong even after a full handshake, the
 	// replay might've happened before the legitimate request
 	if !s.replayStore.add(req.GetNonce(), time.Now()) {
-		log.ErrorContext(c.Context(), "Request is reusing a nonce, rejecting.", "nonce", req.GetNonce())
+		log.ErrorContext(c.Context(), "request is reusing a nonce, rejecting", "nonce", req.GetNonce())
 		sendErr(trace.BadParameter("reused or invalid nonce"))
 		return
 	}

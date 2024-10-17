@@ -44,12 +44,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func (c *Client) connectQuic(peerID string, peerAddr string) (*quicClientConn, error) {
+func (c *Client) connectQUIC(peerID string, peerAddr string) (*quicClientConn, error) {
 	log := c.config.Log.With(
 		"peer_id", peerID,
 		"peer_addr", peerAddr,
 	)
-	log.InfoContext(c.ctx, "Setting up a QUIC client conn.")
+	log.InfoContext(c.ctx, "setting up a QUIC client conn")
 
 	udpAddr, err := net.ResolveUDPAddr("udp", peerAddr)
 	if err != nil {
@@ -212,7 +212,7 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 	dialCtx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 
-	log.DebugContext(dialCtx, "Dialing peer proxy.")
+	log.DebugContext(dialCtx, "dialing peer proxy")
 	earlyConn, err := c.transport.DialEarly(dialCtx, c.addr, tlsConfig, c.quicConfig)
 	if err != nil {
 		if errors.Is(err, wrongProxyError{}) {
@@ -231,7 +231,7 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 	}()
 
 	log.DebugContext(conn.Context(),
-		"Opened connection.",
+		"opened connection",
 		"gso", conn.ConnectionState().GSO,
 	)
 
@@ -241,7 +241,7 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 			return nil, trace.Wrap(err)
 		}
 
-		log.InfoContext(dialCtx, "0-RTT attempt rejected, retrying with a full handshake.")
+		log.InfoContext(dialCtx, "0-RTT attempt rejected, retrying with a full handshake")
 		nextConn, err := earlyConn.NextConnection(dialCtx)
 		if err != nil {
 			if errors.Is(err, wrongProxyError{}) {
@@ -259,7 +259,7 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 		if conn.Context().Err() != nil {
 			return nil, trace.Wrap(context.Cause(conn.Context()))
 		}
-		log.DebugContext(conn.Context(), "Full handshake completed after 0-RTT rejection.")
+		log.DebugContext(conn.Context(), "full handshake completed after 0-RTT rejection")
 		respBuf, stream, err = quicSendUnary(deadline, sizedReqBuf, conn)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -267,7 +267,7 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 	}
 
 	log.DebugContext(conn.Context(),
-		"Exchanged dial request and response.",
+		"exchanged dial request and response",
 		"used_0rtt", conn.ConnectionState().Used0RTT,
 	)
 
@@ -306,7 +306,7 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 	// so we're always allowed to add another one here
 	c.wg.Add(1)
 	context.AfterFunc(conn.Context(), func() {
-		log.DebugContext(conn.Context(), "Connection closed.")
+		log.DebugContext(conn.Context(), "connection closed")
 		c.wg.Done()
 		// remove the connection from the runCtx cancellation tree
 		detach()
