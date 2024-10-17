@@ -4797,7 +4797,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		logger.InfoContext(process.ExitContext(), "Enabling proxy group labels.", "group_id", cfg.Proxy.ProxyGroupID, "generation", cfg.Proxy.ProxyGroupGeneration)
 	}
 	if peerQUICTransport != nil {
-		staticLabels[types.ProxyPeerQUICLabel] = "x"
+		staticLabels[types.UnstableProxyPeerQUICLabel] = "yes"
 		logger.InfoContext(process.ExitContext(), "Advertising proxy peering QUIC support.")
 	}
 
