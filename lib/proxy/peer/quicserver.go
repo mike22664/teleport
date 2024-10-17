@@ -97,10 +97,6 @@ type QUICServer struct {
 	tlsConfig     *tls.Config
 	quicConfig    *quic.Config
 
-	mu     sync.Mutex
-	closed bool
-	wg     sync.WaitGroup
-
 	replayStore replayStore
 
 	// runCtx is a context that gets canceled when all connections should be
@@ -113,6 +109,16 @@ type QUICServer struct {
 	serveCtx context.Context
 	// serveCancel cancels serveCtx.
 	serveCancel context.CancelFunc
+
+	// mu protects everything further in the struct.
+	mu sync.Mutex
+	// closed is set at the beginning of shutdown. When set, nothing is allowed
+	// to increase the waitgroup count past 0.
+	closed bool
+	// wg counts any active listener and connection. Should only be increased
+	// from 0 while holding mu, if the closed flag is not set. Should only be
+	// waited after setting the closed flag.
+	wg sync.WaitGroup
 }
 
 // NewQUICServer returns a [QUICServer] with the given config.
