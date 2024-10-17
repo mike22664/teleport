@@ -316,9 +316,9 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 		return
 	}
 
-	_, clusterName, ok := strings.Cut(req.GetServerId(), ".")
+	_, clusterName, ok := strings.Cut(req.GetTargetHostId(), ".")
 	if !ok {
-		sendErr(trace.BadParameter("server_id %q is missing cluster information", req.GetServerId()))
+		sendErr(trace.BadParameter("server_id %q is missing cluster information", req.GetTargetHostId()))
 		return
 	}
 
@@ -331,8 +331,8 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 			Addr:        req.GetDestination().GetAddr(),
 			AddrNetwork: req.GetDestination().GetNetwork(),
 		},
-		ServerID: req.GetServerId(),
-		ConnType: types.TunnelType(req.GetConnType()),
+		ServerID: req.GetTargetHostId(),
+		ConnType: types.TunnelType(req.GetConnectionType()),
 	})
 	if err != nil {
 		sendErr(err)

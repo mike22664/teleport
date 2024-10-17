@@ -180,8 +180,8 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 	log := c.log.With("conn_nonce", nonce)
 
 	req := &quicpeeringv1a.DialRequest{
-		ServerId: nodeID,
-		ConnType: string(tunnelType),
+		TargetHostId:   nodeID,
+		ConnectionType: string(tunnelType),
 		Source: &quicpeeringv1a.Addr{
 			Network: src.Network(),
 			Addr:    src.String(),
