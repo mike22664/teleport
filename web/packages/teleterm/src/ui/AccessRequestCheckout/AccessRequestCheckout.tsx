@@ -275,7 +275,6 @@ export function AccessRequestCheckout() {
             // that will be merged right after this one (once both are approved)
             bulkToggleKubeResources={() => null}
             fetchKubeNamespaces={() => null}
-            allowedKubeSubresourceKinds={[]}
           />
         )}
       </Transition>
