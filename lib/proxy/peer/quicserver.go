@@ -145,7 +145,7 @@ func NewQUICServer(cfg QUICServerConfig) (*QUICServer, error) {
 		MaxStreamReceiveWindow:     quicMaxReceiveWindow,
 		MaxConnectionReceiveWindow: quicMaxReceiveWindow,
 
-		MaxIncomingStreams:    1 << 60,
+		MaxIncomingStreams:    quicMaxIncomingStreams,
 		MaxIncomingUniStreams: -1,
 
 		MaxIdleTimeout:  quicMaxIdleTimeout,
@@ -265,7 +265,7 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 			log.WarnContext(c.Context(), "refusing to send oversized error message (this is a bug)")
 			return
 		}
-		st.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		st.SetWriteDeadline(time.Now().Add(quicErrorResponseTimeout))
 		if _, err := st.Write(binary.LittleEndian.AppendUint32(nil, uint32(len(errBuf)))); err != nil {
 			return
 		}
@@ -277,7 +277,7 @@ func (s *QUICServer) handleStream(st quic.Stream, c quic.EarlyConnection, log *s
 		}
 	}
 
-	st.SetReadDeadline(time.Now().Add(10 * time.Second))
+	st.SetReadDeadline(time.Now().Add(quicRequestTimeout))
 	var reqLen uint32
 	if err := binary.Read(st, binary.LittleEndian, &reqLen); err != nil {
 		log.DebugContext(c.Context(), "failed to read request size", "error", err)

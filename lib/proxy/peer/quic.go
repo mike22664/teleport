@@ -26,11 +26,12 @@ const (
 	quicMaxIdleTimeout  = 30 * time.Second
 	quicKeepAlivePeriod = 5 * time.Second
 
-	quicMaxReceiveWindow = quicvarint.Max
+	quicMaxReceiveWindow   = quicvarint.Max
+	quicMaxIncomingStreams = 1 << 60 // maximum allowed value as per the quic-go docs
 
 	// quicNextProto is the ALPN indicator for the current version of the QUIC
 	// proxy peering protocol.
-	quicNextProto = "teleport-peer-v1a"
+	quicNextProto = "teleport-peer-v1alpha"
 
 	// quicMaxMessageSize is the maximum accepted size (in protobuf binary
 	// format) for the request and response messages exchanged as part of the
@@ -44,8 +45,12 @@ const (
 	// quicNoncePersistence is the shortest time for which a nonce will be kept
 	// in memory to prevent 0-RTT replay attacks. Should be significantly longer
 	// than [quicTimestampGraceWindow]. In the current implementation, nonces
-	// are kept for at least twice this value.
+	// can be kept for at most twice this value.
 	quicNoncePersistence = 5 * time.Minute
+
+	quicDialTimeout          = 30 * time.Second
+	quicRequestTimeout       = 10 * time.Second
+	quicErrorResponseTimeout = 10 * time.Second
 )
 
 /*

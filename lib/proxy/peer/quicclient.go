@@ -212,7 +212,7 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 	tlsConfig := c.tlsConfig.Clone()
 	tlsConfig.RootCAs = rootCAs
 
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.Now().Add(quicDialTimeout)
 	dialCtx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 
