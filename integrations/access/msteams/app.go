@@ -184,7 +184,12 @@ func (a *App) initBot(ctx context.Context) error {
 		"name", teamsApp.DisplayName,
 		"id", teamsApp.ID)
 
-	a.bot.CheckHealth(ctx)
+	if err := a.bot.CheckHealth(ctx); err != nil {
+		log.WithField("name", teamsApp.DisplayName).
+			WithField("id", teamsApp.ID).
+			WithError(err).
+			Warn("MS Teams healthcheck failed")
+	}
 
 	if !a.conf.Preload {
 		return nil
@@ -253,6 +258,8 @@ func (a *App) run(ctx context.Context) error {
 			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
 		}
 	}
+	log := logger.Get(ctx)
+
 	a.watcherJob = watcherJob
 	a.watcherJob.SetReady(ok)
 	if ok {
@@ -531,11 +538,8 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	recipientSet := stringset.New()
 	a.log.DebugContext(ctx, "Getting suggested reviewer recipients")
 	accessRuleRecipients := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
-	accessRuleRecipients.ForEach(func(r common.Recipient) {
-		recipientSet.Add(r.Name)
-	})
-	if recipientSet.Len() != 0 {
-		return recipientSet.ToSlice()
+	if accessRuleRecipients.Len() != 0 {
+		return accessRuleRecipients.GetNames()
 	}
 
 	var validEmailsSuggReviewers []string
@@ -556,7 +560,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		}
 	}
 	// Use default recipient if there are non suggested reviewers or Access Monitoring Rules that apply.
-	if recipientSet.Len() == 0 {
+	if recipientSet.Len() == 0 && a.conf.MSAPI.DefaultRecipient != "" {
 		recipientSet.Add(a.conf.MSAPI.DefaultRecipient)
 	}
 	return recipientSet.ToSlice()
