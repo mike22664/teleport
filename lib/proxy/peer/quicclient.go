@@ -266,6 +266,10 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 		log.DebugContext(conn.Context(), "full handshake completed after 0-RTT rejection")
 		respBuf, stream, err = quicSendUnary(deadline, sizedReqBuf, conn)
 		if err != nil {
+			log.DebugContext(conn.Context(),
+				"failed to exchange dial request after 0-RTT rejection and handshake",
+				"error", err,
+			)
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -292,6 +296,10 @@ func (c *quicClientConn) dial(nodeID string, src net.Addr, dst net.Addr, tunnelT
 		select {
 		case <-earlyConn.HandshakeComplete():
 		case <-earlyConn.Context().Done():
+			log.DebugContext(conn.Context(),
+				"failed to complete handshake after exchanging 0-RTT dial request",
+				"error", err,
+			)
 			return nil, trace.Wrap(context.Cause(earlyConn.Context()))
 		}
 	}
@@ -330,6 +338,14 @@ func quicSendUnary(deadline time.Time, sizedReqBuf []byte, conn quic.Connection)
 	}
 	defer func() {
 		if err == nil {
+			return
+		}
+		if errors.Is(err, quic.Err0RTTRejected) {
+			// because of a bug (or maybe an API design flaw?), resetting a
+			// stream after receiving a [quic.Err0RTTRejected] can affect new
+			// streams in the post-handshake connection; thankfully, since the
+			// old connection state is guaranteed to be gone after a 0-RTT
+			// rejection, there's no reason to explicitly cancel the stream
 			return
 		}
 		stream.CancelRead(0)
