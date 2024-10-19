@@ -601,7 +601,7 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 		// but there's no reason to reject them here. The goal here is
 		// to disallow most special characters.
 		if !utils.IsValidHostname(strings.ToLower(hostname)) {
-			return trace.BadParameter("invalid hostname %q", hostname)
+			return trace.BadParameter("invalid ssh server hostname %q in heartbeat", hostname)
 		}
 	}
 
