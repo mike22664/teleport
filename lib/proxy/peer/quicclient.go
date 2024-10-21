@@ -340,14 +340,6 @@ func quicSendUnary(deadline time.Time, sizedReqBuf []byte, conn quic.Connection)
 		if err == nil {
 			return
 		}
-		if errors.Is(err, quic.Err0RTTRejected) {
-			// because of a bug (or maybe an API design flaw?), resetting a
-			// stream after receiving a [quic.Err0RTTRejected] can affect new
-			// streams in the post-handshake connection; thankfully, since the
-			// old connection state is guaranteed to be gone after a 0-RTT
-			// rejection, there's no reason to explicitly cancel the stream
-			return
-		}
 		stream.CancelRead(0)
 		stream.CancelWrite(0)
 	}()
