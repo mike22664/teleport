@@ -88,7 +88,7 @@ type Bot struct {
 }
 
 // NewBot creates new bot struct
-func NewBot(c msapi.Config, clusterName, webProxyAddr string,  log *slog.Logger, statusSink common.StatusSink) (*Bot, error) {
+func NewBot(c *Config, clusterName, webProxyAddr string, log *slog.Logger) (*Bot, error) {
 	var (
 		webProxyURL *url.URL
 		err         error
@@ -102,15 +102,15 @@ func NewBot(c msapi.Config, clusterName, webProxyAddr string,  log *slog.Logger,
 	}
 
 	bot := &Bot{
-		Config:      c,
-		graphClient: msapi.NewGraphClient(c),
-		botClient:   msapi.NewBotFrameworkClient(c),
+		Config:      c.MSAPI,
+		graphClient: msapi.NewGraphClient(c.MSAPI),
+		botClient:   msapi.NewBotFrameworkClient(c.MSAPI),
 		recipients:  make(map[string]RecipientData),
 		webProxyURL: webProxyURL,
 		clusterName: clusterName,
 		mu:          &sync.RWMutex{},
 		log:         log,
-		StatusSink:  statusSink,
+		StatusSink:  c.StatusSink,
 	}
 
 	return bot, nil
