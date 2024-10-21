@@ -52,7 +52,7 @@ import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationRequest } from '../../AccessDuration';
 import {
   checkForUnsupportedKubeRequestModes,
-  excludeKubeClusterWithNamespaces,
+  isKubeClusterWithNamespaces,
   type KubeNamespaceRequest,
 } from '../kube';
 
@@ -217,8 +217,8 @@ export function RequestCheckout<T extends PendingListItem>({
     createAttempt.status === 'processing' ||
     fetchResourceRequestRolesAttempt.status === 'processing';
 
-  const numPendingAccessRequests = pendingAccessRequests.filter(item =>
-    excludeKubeClusterWithNamespaces(item, pendingAccessRequests)
+  const numPendingAccessRequests = pendingAccessRequests.filter(
+    item => !isKubeClusterWithNamespaces(item, pendingAccessRequests)
   ).length;
 
   const DefaultHeader = () => {
@@ -297,8 +297,8 @@ export function RequestCheckout<T extends PendingListItem>({
             <Alert kind="danger">
               You can only request Kubernetes resource kind{' '}
               {unsupportedKubeRequestModes} for cluster{' '}
-              {affectedKubeClusterName}, but the web UI does not support these
-              kinds yet. Use the{' '}
+              {affectedKubeClusterName}, but is not supported through this UI.
+              Use the{' '}
               <ExternalLink
                 target="_blank"
                 href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/#step-26-search-for-resources"
