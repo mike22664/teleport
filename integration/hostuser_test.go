@@ -513,6 +513,41 @@ func TestRootHostUsers(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, expectedShell, userShells[namedShellUser])
 	})
+
+	t.Run("Test expiration removal", func(t *testing.T) {
+		expiredUser := "expired-user"
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{expiredUser}, nil) })
+
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
+		_, err := users.UpsertUser(expiredUser, services.HostUsersInfo{
+			Mode: services.HostUserModeKeep,
+		})
+		require.NoError(t, err)
+
+		chageBin, err := exec.LookPath("chage")
+		require.NoError(t, err)
+
+		cmd := exec.Command(chageBin, "-E", "1", "-I", "1", "-M", "1", expiredUser)
+		require.NoError(t, cmd.Run())
+
+		// Assert expirations have been applied to user
+		hasExpirations, exitCode, err := host.UserHasExpirations(expiredUser)
+		require.NoError(t, err)
+		require.Equal(t, 0, exitCode)
+		require.True(t, hasExpirations)
+
+		// Update user without any changes
+		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
+			Mode: services.HostUserModeKeep,
+		})
+		require.NoError(t, err)
+
+		// Ensure expirations are removed
+		hasExpirations, exitCode, err = host.UserHasExpirations(expiredUser)
+		require.NoError(t, err)
+		require.Equal(t, 0, exitCode)
+		require.False(t, hasExpirations)
+	})
 }
 
 func TestRootLoginAsHostUser(t *testing.T) {

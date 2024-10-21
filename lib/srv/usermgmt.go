@@ -113,7 +113,10 @@ type HostUsersBackend interface {
 	// CreateHomeDirectory creates the users home directory and copies in /etc/skel
 	CreateHomeDirectory(userHome string, uid, gid string) error
 	// GetDefaultHomeDirectory returns the default home directory path for the given user
-	GetDefaultHomeDirectory(user string) (string, error)
+	GetDefaultHomeDirectory(name string) (string, error)
+	// RemoveExpirations removes any sort of password or account expiration from the user
+	// that may have been placed by password policies.
+	RemoveExpirations(name string) error
 }
 
 type userCloser struct {
@@ -450,7 +453,8 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 		}
 	}
 
-	return closer, nil
+	// attempt to remove password expirations from managed users if they've been added
+	return closer, trace.Wrap(u.backend.RemoveExpirations(name))
 }
 
 func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) error {

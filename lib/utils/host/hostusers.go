@@ -195,6 +195,63 @@ func GetAllUsers() ([]string, int, error) {
 	return users, -1, nil
 }
 
+func UserHasExpirations(username string) (bool bool, exitCode int, err error) {
+	chageBin, err := exec.LookPath("chage")
+	if err != nil {
+		return false, -1, trace.NotFound("cant find chage binary: %s", err)
+	}
+
+	cmd := exec.Command(chageBin, "-l", username)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return false, cmd.ProcessState.ExitCode(), trace.Wrap(err)
+	}
+
+	trimmedOutput := strings.Trim(string(output), "\n")
+	for _, line := range strings.Split(trimmedOutput, "\n") {
+		parts := strings.Split(line, ":")
+		if len(parts) < 2 {
+			return false, -1, trace.Errorf("chage output invalid")
+		}
+
+		key, value := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+		if value == "never" {
+			continue
+		}
+
+		switch key {
+		case "Password expires", "Password inactive", "Account expires":
+			return true, 0, nil
+		}
+	}
+
+	return false, cmd.ProcessState.ExitCode(), nil
+}
+
+func RemoveUserExpirations(username string) (exitCode int, err error) {
+	chageBin, err := exec.LookPath("chage")
+	if err != nil {
+		return -1, trace.NotFound("can't find chage binary: %s", err)
+	}
+
+	usermodBin, err := exec.LookPath("usermod")
+	if err != nil {
+		return -1, trace.NotFound("can't find usermod binary: %s", err)
+	}
+
+	// remove all expirations from user
+	// chage -E -1 -I -1 <username>
+	cmd := exec.Command(chageBin, "-E", "-1", "-I", "-1", "-M", "-1", username)
+	if err := cmd.Run(); err != nil {
+		return cmd.ProcessState.ExitCode(), trace.Wrap(err)
+	}
+
+	// unlock user password if locked
+	cmd = exec.Command(usermodBin, "-U", username)
+	err = cmd.Run()
+	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
+}
+
 var ErrInvalidSudoers = errors.New("visudo: invalid sudoers file")
 
 // CheckSudoers tests a suders file using `visudo`. The contents
