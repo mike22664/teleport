@@ -19,6 +19,7 @@
 package host
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"os"
@@ -84,6 +85,9 @@ type UserOpts struct {
 	// Shell that the user should use when logging in. When empty, the default shell
 	// for the host is used (typically /usr/bin/sh).
 	Shell string
+	// Expired determines whether or not the user should be created in an expired state
+	// (this should only be used for testing purposes)
+	Expired bool
 }
 
 // UserAdd creates a user on a host using `useradd`
@@ -117,6 +121,10 @@ func UserAdd(username string, groups []string, opts UserOpts) (exitCode int, err
 
 	if opts.GID != "" {
 		args = append(args, "--gid", opts.GID)
+	}
+
+	if opts.Expired {
+		args = append(args, "-f", "0")
 	}
 
 	if opts.Shell != "" {
@@ -195,20 +203,29 @@ func GetAllUsers() ([]string, int, error) {
 	return users, -1, nil
 }
 
+// UserHasExpirations determines if the given username has an expired password, inactive password, or expired account
+// by parsing the output of 'chage -l <username>'.
 func UserHasExpirations(username string) (bool bool, exitCode int, err error) {
 	chageBin, err := exec.LookPath("chage")
 	if err != nil {
-		return false, -1, trace.NotFound("cant find chage binary: %s", err)
+		return false, -1, trace.NotFound("cannot find chage binary: %w", err)
 	}
 
+	stdout := bytes.NewBuffer([]byte{})
 	cmd := exec.Command(chageBin, "-l", username)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
+	cmd.Stdout = stdout
+	if err := cmd.Run(); err != nil {
 		return false, cmd.ProcessState.ExitCode(), trace.Wrap(err)
 	}
 
-	trimmedOutput := strings.Trim(string(output), "\n")
-	for _, line := range strings.Split(trimmedOutput, "\n") {
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			// ignore empty lines
+			continue
+		}
+
 		parts := strings.Split(line, ":")
 		if len(parts) < 2 {
 			return false, -1, trace.Errorf("chage output invalid")
@@ -228,28 +245,40 @@ func UserHasExpirations(username string) (bool bool, exitCode int, err error) {
 	return false, cmd.ProcessState.ExitCode(), nil
 }
 
+// RemoveUserExpirations uses chage to remove any future or past expirations associated with the given username. It also uses usermod to remove any account locks that may have been placed.
 func RemoveUserExpirations(username string) (exitCode int, err error) {
 	chageBin, err := exec.LookPath("chage")
 	if err != nil {
-		return -1, trace.NotFound("can't find chage binary: %s", err)
+		return -1, trace.NotFound("cannot find chage binary: %w", err)
 	}
 
 	usermodBin, err := exec.LookPath("usermod")
 	if err != nil {
-		return -1, trace.NotFound("can't find usermod binary: %s", err)
+		return -1, trace.NotFound("cannot find usermod binary: %w", err)
 	}
 
 	// remove all expirations from user
 	// chage -E -1 -I -1 <username>
 	cmd := exec.Command(chageBin, "-E", "-1", "-I", "-1", "-M", "-1", username)
+	var errs []error
 	if err := cmd.Run(); err != nil {
-		return cmd.ProcessState.ExitCode(), trace.Wrap(err)
+		errs = append(errs, err)
 	}
 
 	// unlock user password if locked
 	cmd = exec.Command(usermodBin, "-U", username)
-	err = cmd.Run()
-	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
+	if err := cmd.Run(); err != nil {
+		errs = append(errs, err)
+	}
+
+	switch len(errs) {
+	case 0:
+		return cmd.ProcessState.ExitCode(), nil
+	case 1:
+		return cmd.ProcessState.ExitCode(), trace.Wrap(errs[0])
+	default:
+		return cmd.ProcessState.ExitCode(), trace.NewAggregate(errs...)
+	}
 }
 
 var ErrInvalidSudoers = errors.New("visudo: invalid sudoers file")

@@ -316,9 +316,10 @@ func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) 
 
 	var err error
 	userOpts := host.UserOpts{
-		UID:   ui.UID,
-		GID:   ui.GID,
-		Shell: ui.Shell,
+		UID:     ui.UID,
+		GID:     ui.GID,
+		Shell:   ui.Shell,
+		Expired: ui.Expired,
 	}
 
 	switch ui.Mode {
@@ -439,6 +440,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 		}
 	}
 
+	defer u.backend.RemoveExpirations(name)
 	if hostUser == nil {
 		if err := u.createUser(name, ui); err != nil {
 			return nil, trace.Wrap(err)
@@ -454,7 +456,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) 
 	}
 
 	// attempt to remove password expirations from managed users if they've been added
-	return closer, trace.Wrap(u.backend.RemoveExpirations(name))
+	return closer, nil
 }
 
 func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) error {

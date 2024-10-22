@@ -1014,6 +1014,9 @@ type HostUsersInfo struct {
 	// users, 'keep' mode users still need to assign 'teleport-keep' in the
 	// Groups slice in order to take ownership.
 	TakeOwnership bool
+	// Expired determines whether or not the user should be created in an expired state
+	// (this should only be used for testing purposes)
+	Expired bool
 }
 
 // HostUsers returns host user information matching a server or nil if

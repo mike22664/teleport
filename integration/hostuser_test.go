@@ -516,24 +516,32 @@ func TestRootHostUsers(t *testing.T) {
 
 	t.Run("Test expiration removal", func(t *testing.T) {
 		expiredUser := "expired-user"
-		t.Cleanup(func() { cleanupUsersAndGroups([]string{expiredUser}, nil) })
+		t.Cleanup(func() { cleanupUsersAndGroups([]string{expiredUser}, []string{"test-group"}) })
 
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 		_, err := users.UpsertUser(expiredUser, services.HostUsersInfo{
-			Mode: services.HostUserModeKeep,
+			Mode:    services.HostUserModeKeep,
+			Expired: true,
 		})
 		require.NoError(t, err)
+
+		// Ensure new user expirations are removed
+		hasExpirations, _, err := host.UserHasExpirations(expiredUser)
+		require.NoError(t, err)
+		require.False(t, hasExpirations)
 
 		chageBin, err := exec.LookPath("chage")
 		require.NoError(t, err)
 
-		cmd := exec.Command(chageBin, "-E", "1", "-I", "1", "-M", "1", expiredUser)
-		require.NoError(t, cmd.Run())
+		expireUser := func(username string) error {
+			cmd := exec.Command(chageBin, "-E", "1", "-I", "1", "-M", "1", username)
+			return cmd.Run()
+		}
+		require.NoError(t, expireUser(expiredUser))
 
 		// Assert expirations have been applied to user
-		hasExpirations, exitCode, err := host.UserHasExpirations(expiredUser)
+		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
 		require.NoError(t, err)
-		require.Equal(t, 0, exitCode)
 		require.True(t, hasExpirations)
 
 		// Update user without any changes
@@ -543,9 +551,26 @@ func TestRootHostUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		// Ensure expirations are removed
-		hasExpirations, exitCode, err = host.UserHasExpirations(expiredUser)
+		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
 		require.NoError(t, err)
-		require.Equal(t, 0, exitCode)
+		require.False(t, hasExpirations)
+
+		// Reinstate expirations
+		require.NoError(t, expireUser(expiredUser))
+		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
+		require.NoError(t, err)
+		require.True(t, hasExpirations)
+
+		// Update user with changes
+		_, err = users.UpsertUser(expiredUser, services.HostUsersInfo{
+			Mode:   services.HostUserModeKeep,
+			Groups: []string{"test-group"},
+		})
+		require.NoError(t, err)
+
+		// Ensure expirations are removed again
+		hasExpirations, _, err = host.UserHasExpirations(expiredUser)
+		require.NoError(t, err)
 		require.False(t, hasExpirations)
 	})
 }
