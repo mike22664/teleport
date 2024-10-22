@@ -34,6 +34,7 @@ import {
   P3,
   Subtitle2,
   Text,
+  Mark,
 } from 'design';
 import { ArrowBack, ChevronDown, ChevronRight, Warning } from 'design/Icon';
 import Table, { Cell } from 'design/DataTable';
@@ -65,6 +66,8 @@ import { CrossIcon } from './CrossIcon';
 
 import type { TransitionStatus } from 'react-transition-group';
 import type { AccessRequest } from 'shared/services/accessRequests';
+import { P } from 'design/Text/Text';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 export const RequestCheckoutWithSlider = forwardRef<
   HTMLDivElement,
@@ -295,17 +298,36 @@ export function RequestCheckout<T extends PendingListItem>({
             )}
           {hasUnsupportedKubeRequestModes && (
             <Alert kind="danger">
-              You can only request Kubernetes resource kind{' '}
-              {unsupportedKubeRequestModes} for cluster{' '}
-              {affectedKubeClusterName}, but is not supported through this UI.
-              Use the{' '}
-              <ExternalLink
-                target="_blank"
-                href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/#step-26-search-for-resources"
-              >
-                tsh CLI tool
-              </ExternalLink>{' '}
-              to create this particular request.
+              <Text mb={2}>
+                You can only request Kubernetes resource kind [
+                {unsupportedKubeRequestModes.join(', ')}] for cluster{' '}
+                <Mark>{affectedKubeClusterName}</Mark>. Requesting those
+                resource kinds is currently only supported through the{' '}
+                <ExternalLink
+                  target="_blank"
+                  href="https://goteleport.com/docs/connect-your-client/tsh/#installing-tsh"
+                >
+                  tsh CLI tool
+                </ExternalLink>
+                . Use the{' '}
+                <ExternalLink
+                  target="_blank"
+                  href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/#search-for-kubernetes-resources"
+                >
+                  tsh request search
+                </ExternalLink>{' '}
+                command that will help you construct the request.
+              </Text>
+              <Box width="360px">
+                Example:
+                <TextSelectCopyMulti
+                  lines={[
+                    {
+                      text: `tsh request search --kind=${unsupportedKubeRequestModes[0]} --kube-cluster=${affectedKubeClusterName} --all-kube-namespaces`,
+                    },
+                  ]}
+                />
+              </Box>
             </Alert>
           )}
           {fetchStatus === 'loading' && (

@@ -50,7 +50,7 @@ export function isKubeClusterWithNamespaces(
 export function checkForUnsupportedKubeRequestModes(
   requestRoleAttempt: Attempt
 ) {
-  let unsupportedKubeRequestModes = '';
+  let unsupportedKubeRequestModes: string[];
   let affectedKubeClusterName = '';
   let requiresNamespaceSelect = false;
 
@@ -58,20 +58,23 @@ export function checkForUnsupportedKubeRequestModes(
     const errMsg = requestRoleAttempt.statusText.toLowerCase();
 
     if (errMsg.includes('request_mode') && errMsg.includes('allowed kinds: ')) {
-      const allowedKinds = errMsg.split('allowed kinds: ')[1];
+      let allowedKinds = errMsg.split('allowed kinds: ')[1];
 
       // Web UI supports selecting namespace and wildcard
       // which basically means requiring namespace.
       if (allowedKinds.includes('*') || allowedKinds.includes('namespace')) {
         requiresNamespaceSelect = true;
       } else {
-        unsupportedKubeRequestModes = allowedKinds;
+        if (allowedKinds.startsWith('[')) {
+          allowedKinds = allowedKinds.slice(1, -1);
+        }
+        unsupportedKubeRequestModes = allowedKinds.split(' ');
       }
 
-      const initialSplit = errMsg.split('for kubernetes cluster');
+      const initialSplit = errMsg.split('for kubernetes cluster "');
       if (initialSplit.length > 1) {
         affectedKubeClusterName = initialSplit[1]
-          .split('. allowed kinds')[0]
+          .split('". allowed kinds')[0]
           .trim();
       }
 

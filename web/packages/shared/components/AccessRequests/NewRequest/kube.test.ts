@@ -37,11 +37,11 @@ test('checkForUnsupportedKubeRequestModes: failed status with unsupported kinds'
     requiresNamespaceSelect,
   } = checkForUnsupportedKubeRequestModes({
     status: 'failed',
-    statusText: `Your Teleport roles request_mode field restricts you from requesting kinds [kube_cluster] for Kubernetes cluster pumpkin-kube-cluster. Allowed kinds: [pod secret]`,
+    statusText: `Your Teleport roles request_mode field restricts you from requesting kinds [kube_cluster] for Kubernetes cluster "pumpkin-kube-cluster". Allowed kinds: [pod secret]`,
   });
 
   expect(affectedKubeClusterName).toEqual(`pumpkin-kube-cluster`);
-  expect(unsupportedKubeRequestModes).toEqual('[pod secret]');
+  expect(unsupportedKubeRequestModes).toEqual(['pod', 'secret']);
   expect(requiresNamespaceSelect).toBeFalsy();
 });
 
@@ -52,7 +52,7 @@ test('checkForUnsupportedKubeRequestModes: failed status with supported namespac
     requiresNamespaceSelect,
   } = checkForUnsupportedKubeRequestModes({
     status: 'failed',
-    statusText: `Your Teleport roles request_mode field restricts you from requesting kinds [kube_cluster] for Kubernetes cluster pumpkin-kube-cluster. Allowed kinds: [pod secret namespace]`,
+    statusText: `Your Teleport roles request_mode field restricts you from requesting kinds [kube_cluster] for Kubernetes cluster "pumpkin-kube-cluster". Allowed kinds: [pod secret namespace]`,
   });
 
   expect(affectedKubeClusterName).toEqual(`pumpkin-kube-cluster`);
