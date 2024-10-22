@@ -194,6 +194,16 @@ type HostUserManagement struct {
 	userGrace time.Duration
 }
 
+// GetBackend returns the unexported HostUsersBackend powering HostUsersManagement.
+func (u *HostUserManagement) GetBackend() HostUsersBackend {
+	return u.backend
+}
+
+// OverrideBackend overrides the HostUsersBackend implementation powering HostUsersManagement.
+func (u *HostUserManagement) OverrideBackend(backend HostUsersBackend) {
+	u.backend = backend
+}
+
 type HostSudoersManagement struct {
 	log *slog.Logger
 
@@ -316,10 +326,9 @@ func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) 
 
 	var err error
 	userOpts := host.UserOpts{
-		UID:     ui.UID,
-		GID:     ui.GID,
-		Shell:   ui.Shell,
-		Expired: ui.Expired,
+		UID:   ui.UID,
+		GID:   ui.GID,
+		Shell: ui.Shell,
 	}
 
 	switch ui.Mode {

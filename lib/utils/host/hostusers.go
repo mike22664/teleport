@@ -85,9 +85,6 @@ type UserOpts struct {
 	// Shell that the user should use when logging in. When empty, the default shell
 	// for the host is used (typically /usr/bin/sh).
 	Shell string
-	// Expired determines whether or not the user should be created in an expired state
-	// (this should only be used for testing purposes)
-	Expired bool
 }
 
 // UserAdd creates a user on a host using `useradd`
@@ -121,10 +118,6 @@ func UserAdd(username string, groups []string, opts UserOpts) (exitCode int, err
 
 	if opts.GID != "" {
 		args = append(args, "--gid", opts.GID)
-	}
-
-	if opts.Expired {
-		args = append(args, "-f", "0")
 	}
 
 	if opts.Shell != "" {
