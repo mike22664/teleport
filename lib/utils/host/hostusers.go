@@ -201,7 +201,7 @@ func GetAllUsers() ([]string, int, error) {
 func UserHasExpirations(username string) (bool bool, exitCode int, err error) {
 	chageBin, err := exec.LookPath("chage")
 	if err != nil {
-		return false, -1, trace.NotFound("cannot find chage binary: %w", err)
+		return false, -1, trace.NotFound("cannot find chage binary: %s", err)
 	}
 
 	stdout := bytes.NewBuffer([]byte{})
@@ -242,12 +242,12 @@ func UserHasExpirations(username string) (bool bool, exitCode int, err error) {
 func RemoveUserExpirations(username string) (exitCode int, err error) {
 	chageBin, err := exec.LookPath("chage")
 	if err != nil {
-		return -1, trace.NotFound("cannot find chage binary: %w", err)
+		return -1, trace.NotFound("cannot find chage binary: %s", err)
 	}
 
 	usermodBin, err := exec.LookPath("usermod")
 	if err != nil {
-		return -1, trace.NotFound("cannot find usermod binary: %w", err)
+		return -1, trace.NotFound("cannot find usermod binary: %s", err)
 	}
 
 	// remove all expirations from user
