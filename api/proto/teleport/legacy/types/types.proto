@@ -6557,7 +6557,7 @@ message PluginMSTeamsSettings {
   // Region to be used by the Microsoft Graph API client.
   string region = 4;
   // DefaultRecipient is the default recipient to use if no access monitoring rules are specified.
-  string defaultRecipient = 5;
+  string default_recipient = 5;
 }
 
 message PluginBootstrapCredentialsV1 {
