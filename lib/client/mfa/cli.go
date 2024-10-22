@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -33,6 +34,15 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
+)
+
+// CLIMFAType is the CLI display name for an MFA type.
+type CLIMFAType string
+
+const (
+	CLIMFATypeOTP      = "OTP"
+	CLIMFATypeWebauthn = "WEBAUTHN"
+	CLIMFATypeSSO      = "SSO"
 )
 
 // CLIPrompt is the default CLI mfa prompt implementation.
@@ -62,19 +72,65 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		fmt.Fprintln(c.writer, c.cfg.PromptReason)
 	}
 
-	runOpts, err := c.cfg.GetRunOptions(ctx, chal)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	promptOTP := chal.TOTP != nil
+	promptWebauthn := chal.WebauthnChallenge != nil && c.cfg.WebauthnSupported
+	promptSSO := false // TODO(Joerger): check for SSO challenge once added in separate PR.
 
 	// No prompt to run, no-op.
-	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn {
+	if !promptOTP && !promptWebauthn && !promptSSO {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
+	var availableMethods []string
+	if promptWebauthn {
+		availableMethods = append(availableMethods, CLIMFATypeWebauthn)
+	}
+	if promptSSO {
+		availableMethods = append(availableMethods, CLIMFATypeSSO)
+	}
+	if promptOTP {
+		availableMethods = append(availableMethods, CLIMFATypeOTP)
+	}
+
+	// Use stronger auth methods if hijack is not allowed.
+	if !c.cfg.AllowStdinHijack && (promptWebauthn || promptSSO) {
+		promptOTP = false
+	}
+
+	// Prefer Webauthn > SSO > OTP, or whatever method is requested or required by the client.
+	var chosenMethod string
+	switch {
+	case promptWebauthn && c.cfg.AuthenticatorAttachment != wancli.AttachmentAuto:
+		// Prefer Webauthn if a specific webauthn attachment was requested.
+		chosenMethod = CLIMFATypeWebauthn
+		promptSSO, promptOTP = false, false
+	case c.cfg.PreferSSO && promptSSO:
+		chosenMethod = CLIMFATypeSSO
+		promptWebauthn, promptOTP = false, false
+	case c.cfg.PreferOTP && promptOTP:
+		chosenMethod = CLIMFATypeOTP
+		promptWebauthn, promptSSO = false, false
+	case promptWebauthn:
+		// prefer webauthn over sso, but allow dual prompt with totp.
+		chosenMethod = CLIMFATypeWebauthn
+		promptSSO = false
+		if promptOTP {
+			chosenMethod = fmt.Sprintf("%v and %v", CLIMFATypeWebauthn, CLIMFATypeOTP)
+		}
+	case promptSSO:
+		// prefer sso over otp
+		chosenMethod = CLIMFATypeSSO
+		promptOTP = false
+	case promptOTP:
+		chosenMethod = CLIMFATypeOTP
+	}
+
+	fmt.Fprintf(c.writer, "Available MFA methods [%v]. Continuing with %v.\n", strings.Join(availableMethods, ", "), chosenMethod)
+	fmt.Fprintln(c.writer, "If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.")
+
 	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
 	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- MFAGoroutineResponse) {
-		dualPrompt := runOpts.PromptTOTP && runOpts.PromptWebauthn
+		dualPrompt := promptOTP && promptWebauthn
 
 		// Print the prompt message directly here in case of dualPrompt.
 		// This avoids problems with a goroutine failing before any message is
@@ -90,9 +146,9 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			fmt.Fprintln(c.writer, message)
 		}
 
-		// Fire TOTP goroutine.
+		// Fire OTP goroutine.
 		var otpCancelAndWait func()
-		if runOpts.PromptTOTP {
+		if promptOTP {
 			otpCtx, otpCancel := context.WithCancel(ctx)
 			otpDone := make(chan struct{})
 			otpCancelAndWait = func() {
@@ -109,13 +165,13 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 				}()
 
 				quiet := c.cfg.Quiet || dualPrompt
-				resp, err := c.promptTOTP(otpCtx, quiet)
+				resp, err := c.promptOTP(otpCtx, quiet)
 				respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "TOTP authentication failed")}
 			}()
 		}
 
 		// Fire Webauthn goroutine.
-		if runOpts.PromptWebauthn {
+		if promptWebauthn {
 			wg.Add(1)
 			go func() {
 				defer func() {
@@ -139,7 +195,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	return HandleMFAPromptGoroutines(ctx, spawnGoroutines)
 }
 
-func (c *CLIPrompt) promptTOTP(ctx context.Context, quiet bool) (*proto.MFAAuthenticateResponse, error) {
+func (c *CLIPrompt) promptOTP(ctx context.Context, quiet bool) (*proto.MFAAuthenticateResponse, error) {
 	var msg string
 	if !quiet {
 		msg = fmt.Sprintf("Enter an OTP code from a %sdevice", c.promptDevicePrefix())

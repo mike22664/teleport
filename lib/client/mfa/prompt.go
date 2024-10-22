@@ -62,6 +62,9 @@ type PromptConfig struct {
 	// PreferOTP favors OTP challenges, if applicable.
 	// Takes precedence over AuthenticatorAttachment settings.
 	PreferOTP bool
+	// PreferSSO favors SSO challenges, if applicable.
+	// Takes precedence over AuthenticatorAttachment settings.
+	PreferSSO bool
 	// WebauthnSupported indicates whether Webauthn is supported.
 	WebauthnSupported bool
 	// StdinFunc allows tests to override prompt.Stdin().
@@ -82,41 +85,6 @@ func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) *PromptConfig {
 	}
 
 	return cfg
-}
-
-// RunOpts are mfa prompt run options.
-type RunOpts struct {
-	PromptTOTP     bool
-	PromptWebauthn bool
-}
-
-// GetRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
-func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (RunOpts, error) {
-	promptTOTP := chal.TOTP != nil
-	promptWebauthn := chal.WebauthnChallenge != nil
-
-	// Does the current platform support hardware MFA? Adjust accordingly.
-	switch {
-	case !promptTOTP && promptWebauthn && !c.WebauthnSupported:
-		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
-	case !c.WebauthnSupported:
-		// Do not prompt for hardware devices, it won't work.
-		promptWebauthn = false
-	}
-
-	// Tweak enabled/disabled methods according to opts.
-	switch {
-	case promptTOTP && c.PreferOTP:
-		promptWebauthn = false
-	case promptWebauthn && c.AuthenticatorAttachment != wancli.AttachmentAuto:
-		// Prefer Webauthn if an specific attachment was requested.
-		promptTOTP = false
-	case promptWebauthn && !c.AllowStdinHijack:
-		// Use strongest auth if hijack is not allowed.
-		promptTOTP = false
-	}
-
-	return RunOpts{promptTOTP, promptWebauthn}, nil
 }
 
 func (c PromptConfig) GetWebauthnOrigin() string {
