@@ -620,8 +620,8 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 
 	// Create a minimal default environment for the user.
 	workingDir := string(os.PathSeparator)
-	hasAccess, err := CheckHomeDir(localUser)
 
+	hasAccess, err := CheckHomeDir(localUser)
 	if hasAccess && err == nil {
 		workingDir = localUser.HomeDir
 	}
@@ -1255,7 +1255,9 @@ func hasAccessibleHomeDir() error {
 	return nil
 }
 
-// CheckHomeDir checks if the user's home directory exists and is accessible to the user.
+// CheckHomeDir checks if the user's home directory exists and is accessible to the user. Only catastrophic
+// errors will be returned, which means a missing, inaccessible, or otherwise invalid home directory will result
+// in a return of (false, nil)
 func CheckHomeDir(localUser *user.User) (bool, error) {
 	currentUser, err := user.Current()
 	if err != nil {
