@@ -2750,6 +2750,16 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			},
 		},
 		{
+			desc:                 "not configured request mode takes precedence over configured request mode (allow any kube request)",
+			userStaticRoles:      []string{"request-mode-undefined_search-wildcard", "request-mode-secret_search-wildcard"},
+			expectedRequestRoles: []string{"kube-access-wildcard", "db-access-wildcard"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
+				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
+				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "some-namespace"},
+			},
+		},
+		{
 			desc:                 "request_mode does not get applied with a role without search_as_roles defined",
 			userStaticRoles:      []string{"request-mode-undefined_search-wildcard", "request-mode-pod_search-as-roles-undefined"},
 			expectedRequestRoles: []string{"kube-access-wildcard", "db-access-wildcard"},

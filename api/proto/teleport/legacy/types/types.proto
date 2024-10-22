@@ -2650,9 +2650,6 @@ message AccessCapabilities {
   // AutoRequest indicates whether the request strategy indicates that a
   // request should be automatically generated on login.
   bool AutoRequest = 6 [(gogoproto.jsontag) = "auto_request,omitempty"];
-
-  reserved 7; // removed and not required anymore
-  reserved "RequestMode";
 }
 
 // AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.

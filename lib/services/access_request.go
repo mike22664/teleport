@@ -1508,15 +1508,29 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
 	// Collect all the request modes for the search as roles found for this role.
-	if len(allow.SearchAsRoles) > 0 && role.GetOptions().RequestMode != nil {
-		for _, allowedSearchAsRole := range allow.SearchAsRoles {
-			kubeRequestModes := role.GetOptions().RequestMode.KubernetesResources
-			// If for some reason, the same search_as_role name got defined in another static role,
-			// merge the request modes.
-			if _, exists := m.kubeRequestModeLookup[allowedSearchAsRole]; exists {
-				kubeRequestModes = append(kubeRequestModes, m.kubeRequestModeLookup[allowedSearchAsRole]...)
+	if len(allow.SearchAsRoles) > 0 {
+		// If the role does not have request mode configured, anything is allowed by default,
+		// and will override configured request modes.
+		if (role.GetOptions().RequestMode == nil) || len(role.GetOptions().RequestMode.KubernetesResources) == 0 {
+			for _, allowedSearchAsRole := range allow.SearchAsRoles {
+				m.kubeRequestModeLookup[allowedSearchAsRole] = []types.RequestModeKubernetesResource{}
 			}
-			m.kubeRequestModeLookup[allowedSearchAsRole] = kubeRequestModes
+		} else {
+			for _, allowedSearchAsRole := range allow.SearchAsRoles {
+				kubeRequestModes := role.GetOptions().RequestMode.KubernetesResources
+				modes, exists := m.kubeRequestModeLookup[allowedSearchAsRole]
+
+				if exists && len(modes) == 0 {
+					continue
+				}
+
+				// If for some reason, the same search_as_role name got defined in another static role,
+				// merge the request modes.
+				if exists {
+					kubeRequestModes = append(kubeRequestModes, m.kubeRequestModeLookup[allowedSearchAsRole]...)
+				}
+				m.kubeRequestModeLookup[allowedSearchAsRole] = kubeRequestModes
+			}
 		}
 	}
 
