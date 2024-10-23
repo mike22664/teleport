@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
@@ -95,7 +96,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 
 	promptOTP := chal.TOTP != nil
-	promptWebauthn := chal.WebauthnChallenge != nil && c.WebauthnSupported
+	promptWebauthn := chal.WebauthnChallenge != nil
 	promptSSO := false // TODO(Joerger): check for SSO challenge once added in separate PR.
 
 	// No prompt to run, no-op.
@@ -112,6 +113,12 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 	if promptOTP {
 		availableMethods = append(availableMethods, CLIMFATypeOTP)
+	}
+
+	// Check off unsupported methods.
+	if promptWebauthn && !c.WebauthnSupported {
+		promptWebauthn = false
+		slog.DebugContext(ctx, "hardware device MFA not supported by your platform")
 	}
 
 	// Prefer whatever method is requested by the client.
@@ -148,6 +155,10 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		promptOTP = false
 	case promptOTP:
 		chosenMethod = CLIMFATypeOTP
+	}
+
+	if chosenMethod == "" {
+		return nil, trace.BadParameter("all available MFA methods [%v] are not supported by the client", strings.Join(availableMethods, ", "))
 	}
 
 	fmt.Fprintf(c.Writer, "Available MFA methods [%v]. Continuing with %v.\n", strings.Join(availableMethods, ", "), chosenMethod)
