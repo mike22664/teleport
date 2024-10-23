@@ -45,7 +45,7 @@ type CreateGatewayParams struct {
 	TCPPortAllocator     gateway.TCPPortAllocator
 	OnExpiredCert        gateway.OnExpiredCertFunc
 	KubeconfigsDir       string
-	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
+	MFAPromptConstructor func(cfg libmfa.PromptConfig) mfa.Prompt
 	ClusterClient        *client.ClusterClient
 }
 

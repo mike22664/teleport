@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
-	"github.com/gravitational/teleport/api/utils/prompt"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
@@ -51,30 +50,15 @@ type PromptConfig struct {
 	ProxyAddress string
 	// WebauthnLoginFunc performs client-side Webauthn login.
 	WebauthnLoginFunc WebauthnLoginFunc
-	// AllowStdinHijack allows stdin hijack during MFA prompts.
-	// Stdin hijack provides a better login UX, but it can be difficult to reason
-	// about and is often a source of bugs.
-	// Do not set this options unless you deeply understand what you are doing.
-	// If false then only the strongest auth method is prompted.
-	AllowStdinHijack bool
 	// AuthenticatorAttachment specifies the desired authenticator attachment.
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
-	// PreferOTP favors OTP challenges, if applicable.
-	// Takes precedence over AuthenticatorAttachment settings.
-	PreferOTP bool
-	// PreferSSO favors SSO challenges, if applicable.
-	// Takes precedence over AuthenticatorAttachment settings.
-	PreferSSO bool
 	// WebauthnSupported indicates whether Webauthn is supported.
 	WebauthnSupported bool
-	// StdinFunc allows tests to override prompt.Stdin().
-	// If nil prompt.Stdin() is used.
-	StdinFunc func() prompt.StdinReader
 }
 
 // NewPromptConfig returns a prompt config that will induce default behavior.
-func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) *PromptConfig {
-	cfg := &PromptConfig{
+func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) PromptConfig {
+	cfg := PromptConfig{
 		ProxyAddress:      proxyAddr,
 		WebauthnLoginFunc: wancli.Login,
 		WebauthnSupported: wancli.HasPlatformSupport(),

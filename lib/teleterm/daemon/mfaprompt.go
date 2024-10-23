@@ -47,16 +47,16 @@ type mfaPrompt struct {
 
 // NewMFAPromptConstructor returns a new MFA prompt constructor
 // for this service and the given resource URI.
-func (s *Service) NewMFAPromptConstructor(resourceURI uri.ResourceURI) func(cfg *libmfa.PromptConfig) mfa.Prompt {
-	return func(cfg *libmfa.PromptConfig) mfa.Prompt {
+func (s *Service) NewMFAPromptConstructor(resourceURI uri.ResourceURI) func(cfg libmfa.PromptConfig) mfa.Prompt {
+	return func(cfg libmfa.PromptConfig) mfa.Prompt {
 		return s.NewMFAPrompt(resourceURI, cfg)
 	}
 }
 
 // NewMFAPrompt returns a new MFA prompt for this service and the given resource URI.
-func (s *Service) NewMFAPrompt(resourceURI uri.ResourceURI, cfg *libmfa.PromptConfig) *mfaPrompt {
+func (s *Service) NewMFAPrompt(resourceURI uri.ResourceURI, cfg libmfa.PromptConfig) *mfaPrompt {
 	return &mfaPrompt{
-		cfg:          *cfg,
+		cfg:          cfg,
 		resourceURI:  resourceURI,
 		promptAppMFA: s.promptAppMFA,
 	}
