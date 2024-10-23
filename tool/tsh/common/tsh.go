@@ -3638,6 +3638,11 @@ func onSSH(cf *CLIConf) error {
 	}
 
 	// If "tsh ssh" is invoked the user must specify some host to connect to.
+	//
+	// This used to be handled with kingpin by making "UserHost" a required
+	// argument for the SSH command. However this is no longer possible due to
+	// another OpenSSH compatability flag that must be run without arguments:
+	// "tsh ssh -V".
 	if cf.UserHost == "" {
 		return trace.BadParameter("required argument '[user@]host' not provided")
 	}
