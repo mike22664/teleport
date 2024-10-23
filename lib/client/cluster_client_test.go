@@ -363,7 +363,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					Config: Config{
 						SiteName: "test",
 						Tracer:   tracing.NoopTracer("test"),
-						MFAPromptConstructor: func(cfg *libmfa.PromptConfig) mfa.Prompt {
+						MFAPromptConstructor: func(cfg libmfa.PromptConfig) mfa.Prompt {
 							return test.prompt
 						},
 					},

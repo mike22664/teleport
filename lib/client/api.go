@@ -360,6 +360,9 @@ type Config struct {
 	// authenticators, such as remote hosts or virtual machines.
 	PreferOTP bool
 
+	// PreferSSO prefers SSO in favor of other MFA methods.
+	PreferSSO bool
+
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool
@@ -488,7 +491,7 @@ type Config struct {
 	SSHLogDir string
 
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
-	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
+	MFAPromptConstructor func(cfg libmfa.PromptConfig) mfa.Prompt
 
 	// CustomHardwareKeyPrompt is a custom hardware key prompt to use when asking
 	// for a hardware key PIN, touch, etc.
