@@ -534,6 +534,8 @@ func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Cred
 	return nil
 }
 
+const rootDirectory = "/"
+
 func RunNetworking() (errw io.Writer, code int, err error) {
 	// SIGQUIT is used by teleport to initiate graceful shutdown, waiting for
 	// existing exec sessions to close before ending the process. For this to
@@ -619,7 +621,7 @@ func RunNetworking() (errw io.Writer, code int, err error) {
 	}
 
 	// Create a minimal default environment for the user.
-	workingDir := string(os.PathSeparator)
+	workingDir := rootDirectory
 
 	hasAccess, err := CheckHomeDir(localUser)
 	if hasAccess && err == nil {
@@ -1072,11 +1074,11 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pamEnviron
 		cmd.Dir = localUser.HomeDir
 	} else {
 		// Write failure to find home dir to stdout, same as OpenSSH.
-		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\n", localUser.HomeDir, string(os.PathSeparator))
+		msg := fmt.Sprintf("Could not set shell's cwd to home directory %q, defaulting to %q\n", localUser.HomeDir, rootDirectory)
 		if _, err := cmd.Stdout.Write([]byte(msg)); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cmd.Dir = string(os.PathSeparator)
+		cmd.Dir = rootDirectory
 	}
 
 	// Only set process credentials if the UID/GID of the requesting user are
@@ -1292,7 +1294,7 @@ func CheckHomeDir(localUser *user.User) (bool, error) {
 		Path: executable,
 		Args: []string{executable, teleport.CheckHomeDirSubCommand},
 		Env:  []string{"HOME=" + localUser.HomeDir},
-		Dir:  string(os.PathSeparator),
+		Dir:  rootDirectory,
 		SysProcAttr: &syscall.SysProcAttr{
 			Setsid:     true,
 			Credential: credential,
