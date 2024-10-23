@@ -41,7 +41,7 @@ const (
 // Sent from a proxy to a peer proxy in a fresh QUIC stream to dial a Teleport
 // resource through a QUIC proxy peering connection. The message is sent in
 // protobuf binary format, prefixed by its length encoded as a little endian
-// 32-bit integer.
+// 32-bit unsigned integer.
 type DialRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

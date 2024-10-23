@@ -26,7 +26,7 @@ option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/qui
 // Sent from a proxy to a peer proxy in a fresh QUIC stream to dial a Teleport
 // resource through a QUIC proxy peering connection. The message is sent in
 // protobuf binary format, prefixed by its length encoded as a little endian
-// 32-bit integer.
+// 32-bit unsigned integer.
 message DialRequest {
   // The target agent for the connection attempt; should be "<host id>.<cluster name>".
   string target_host_id = 1;
