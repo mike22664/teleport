@@ -157,78 +157,27 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		chosenMethod = CLIMFATypeOTP
 	}
 
-	if chosenMethod == "" {
-		return nil, trace.BadParameter("all available MFA methods [%v] are not supported by the client", strings.Join(availableMethods, ", "))
+	if chosenMethod != "" {
+		fmt.Fprintf(c.Writer, "Available MFA methods [%v]. Continuing with %v.\n", strings.Join(availableMethods, ", "), chosenMethod)
+		fmt.Fprintf(c.Writer, "If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n")
 	}
 
-	fmt.Fprintf(c.Writer, "Available MFA methods [%v]. Continuing with %v.\n", strings.Join(availableMethods, ", "), chosenMethod)
-	fmt.Fprintf(c.Writer, "If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n")
-
-	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
-	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- MFAGoroutineResponse) {
-		dualPrompt := promptOTP && promptWebauthn
-
-		// Print the prompt message directly here in case of dualPrompt.
-		// This avoids problems with a goroutine failing before any message is
-		// printed.
-		if dualPrompt {
-			var message string
-			if runtime.GOOS == constants.WindowsOS {
-				message = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
-				webauthnwin.SetPromptPlatformMessage("")
-			} else {
-				message = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", c.promptDevicePrefix(), c.promptDevicePrefix())
-			}
-			fmt.Fprintln(c.Writer, message)
-		}
-
-		// Fire OTP goroutine.
-		var otpCancelAndWait func()
-		if promptOTP {
-			otpCtx, otpCancel := context.WithCancel(ctx)
-			otpDone := make(chan struct{})
-			otpCancelAndWait = func() {
-				otpCancel()
-				<-otpDone
-			}
-
-			wg.Add(1)
-			go func() {
-				defer func() {
-					wg.Done()
-					otpCancel()
-					close(otpDone)
-				}()
-
-				quiet := c.Quiet || dualPrompt
-				resp, err := c.promptOTP(otpCtx, quiet)
-				respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "TOTP authentication failed")}
-			}()
-		}
-
-		// Fire Webauthn goroutine.
-		if promptWebauthn {
-			wg.Add(1)
-			go func() {
-				defer func() {
-					wg.Done()
-					// Important for dual-prompt, harmless otherwise.
-					webauthnwin.ResetPromptPlatformMessage()
-				}()
-
-				// Get webauthn prompt and wrap with otp context handler.
-				prompt := &webauthnPromptWithOTP{
-					LoginPrompt:      c.getWebauthnPrompt(ctx, dualPrompt),
-					otpCancelAndWait: otpCancelAndWait,
-				}
-
-				resp, err := c.promptWebauthn(ctx, chal, prompt)
-				respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "Webauthn authentication failed")}
-			}()
-		}
+	switch {
+	case promptOTP && promptWebauthn:
+		resp, err := c.promptWebauthnAndOTP(ctx, chal)
+		return resp, trace.Wrap(err)
+	case promptWebauthn:
+		resp, err := c.promptWebauthn(ctx, chal, c.getWebauthnPrompt(ctx))
+		return resp, trace.Wrap(err)
+	case promptSSO:
+		// TODO(Joerger): prompt for SSO once implemented.
+		return nil, trace.NotImplemented("SSO MFA not implemented")
+	case promptOTP:
+		resp, err := c.promptOTP(ctx, c.Quiet)
+		return resp, trace.Wrap(err)
+	default:
+		return nil, trace.BadParameter("client does not support any available MFA methods [%v]", strings.Join(availableMethods, ", "))
 	}
-
-	return HandleMFAPromptGoroutines(ctx, spawnGoroutines)
 }
 
 func (c *CLIPrompt) promptOTP(ctx context.Context, quiet bool) (*proto.MFAAuthenticateResponse, error) {
@@ -249,7 +198,7 @@ func (c *CLIPrompt) promptOTP(ctx context.Context, quiet bool) (*proto.MFAAuthen
 	}, nil
 }
 
-func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context, dualPrompt bool) wancli.LoginPrompt {
+func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context) *wancli.DefaultPrompt {
 	writer := c.Writer
 	if c.Quiet {
 		writer = io.Discard
@@ -259,13 +208,6 @@ func (c *CLIPrompt) getWebauthnPrompt(ctx context.Context, dualPrompt bool) wanc
 	prompt.StdinFunc = c.StdinFunc
 	prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", c.promptDevicePrefix())
 	prompt.FirstTouchMessage = fmt.Sprintf("Tap any %ssecurity key", c.promptDevicePrefix())
-
-	// Skip when both OTP and WebAuthn are possible, as the prompt happens
-	// externally.
-	if dualPrompt {
-		prompt.FirstTouchMessage = ""
-	}
-
 	return prompt
 }
 
@@ -284,6 +226,66 @@ func (c *CLIPrompt) promptDevicePrefix() string {
 		return fmt.Sprintf("*%s* ", c.DeviceType)
 	}
 	return ""
+}
+
+func (c *CLIPrompt) promptWebauthnAndOTP(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- MFAGoroutineResponse) {
+		var message string
+		if runtime.GOOS == constants.WindowsOS {
+			message = "Follow the OS dialogs for platform authentication, or enter an OTP code here:"
+			webauthnwin.SetPromptPlatformMessage("")
+		} else {
+			message = fmt.Sprintf("Tap any %ssecurity key or enter a code from a %sOTP device", c.promptDevicePrefix(), c.promptDevicePrefix())
+		}
+		fmt.Fprintln(c.Writer, message)
+
+		// Fire OTP goroutine.
+		var otpCancelAndWait func()
+		otpCtx, otpCancel := context.WithCancel(ctx)
+		otpDone := make(chan struct{})
+		otpCancelAndWait = func() {
+			otpCancel()
+			<-otpDone
+		}
+
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+				otpCancel()
+				close(otpDone)
+			}()
+
+			resp, err := c.promptOTP(otpCtx, true /*quiet*/)
+			respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "TOTP authentication failed")}
+		}()
+
+		// Fire Webauthn goroutine.
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+				// Important for dual-prompt.
+				webauthnwin.ResetPromptPlatformMessage()
+			}()
+
+			// Skip FirstTouchMessage when both OTP and WebAuthn are possible,
+			// as the prompt happens externally.
+			defaultPrompt := c.getWebauthnPrompt(ctx)
+			defaultPrompt.FirstTouchMessage = ""
+
+			// Wrap the prompt with otp context handler.
+			prompt := &webauthnPromptWithOTP{
+				LoginPrompt:      defaultPrompt,
+				otpCancelAndWait: otpCancelAndWait,
+			}
+
+			resp, err := c.promptWebauthn(ctx, chal, prompt)
+			respC <- MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "Webauthn authentication failed")}
+		}()
+	}
+
+	return HandleMFAPromptGoroutines(ctx, spawnGoroutines)
 }
 
 // webauthnPromptWithOTP implements wancli.LoginPrompt for MFA logins.
