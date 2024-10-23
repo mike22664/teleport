@@ -315,6 +315,13 @@ func (s *QUICServer) handleStream(stream quic.Stream, conn quic.EarlyConnection,
 		select {
 		case <-conn.HandshakeComplete():
 		case <-conn.Context().Done():
+			// logging this at warn level because it should be very atypical to
+			// begin with, and it might be a symptom of a malicious actor
+			// interfering with the connection
+			log.WarnContext(conn.Context(),
+				"handshake failure or connection loss after receiving dial request with out of sync timestamp",
+				"error", context.Cause(conn.Context()),
+			)
 			return
 		}
 	}
