@@ -3309,16 +3309,32 @@ func (set RoleSet) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) 
 // WithKubernetesRequestModeFilter returns a SearchAsRolesOption that filters
 // roles based on the Kubernetes request mode if the role has one.
 func WithKubernetesRequestModeFilter(kind string) SearchAsRolesOption {
-	return func(r types.Role) bool {
-		if r.GetOptions().RequestMode == nil || len(r.GetOptions().RequestMode.KubernetesResources) == 0 {
-			// if the role does not have request mode, it should be allowed
+	return func(role types.Role) bool {
+		var allowedKinds []string
+		var deniedKinds []string
+		allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
+		if allow.RequestMode != nil {
+			allowedKinds = getKubeResourceKinds(allow.RequestMode.KubernetesResources)
+		}
+		if deny.RequestMode != nil {
+			deniedKinds = getKubeResourceKinds(deny.RequestMode.KubernetesResources)
+		}
+
+		// No request modes found == allow any kube resource.
+		if len(deniedKinds) == 0 && len(allowedKinds) == 0 {
 			return true
 		}
-		for _, allowedResource := range r.GetOptions().RequestMode.KubernetesResources {
-			if allowedResource.Kind == kind || allowedResource.Kind == types.Wildcard {
+
+		if len(allowedKinds) == 0 {
+			return !slices.Contains(deniedKinds, kind)
+		}
+
+		for _, allowedKind := range allowedKinds {
+			if allowedKind == kind && !slices.Contains(deniedKinds, kind) {
 				return true
 			}
 		}
+
 		return false
 	}
 }

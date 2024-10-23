@@ -3045,13 +3045,6 @@ message RoleOptions {
 
   // CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.
   string CreateHostUserDefaultShell = 31 [(gogoproto.jsontag) = "create_host_user_default_shell,omitempty"];
-
-  // request_mode optionally allows admins to define a create request mode for applicable resources.
-  // It can enforce a requester to request only certain kinds of resources.
-  // Eg: Users can make request to either a resource kind "kube_cluster" or any of its
-  // subresources like "namespaces". The mode can be defined such that it prevents a user
-  // from requesting "kube_cluster" and enforce requesting any of its subresources.
-  AccessRequestMode request_mode = 32 [(gogoproto.jsontag) = "request_mode,omitempty"];
 }
 
 message RecordSession {
@@ -3443,6 +3436,13 @@ message AccessRequestConditions {
     (gogoproto.jsontag) = "max_duration,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
+
+  // request_mode optionally allows admins to define a create request mode for applicable resources.
+  // It can enforce a requester to request only certain kinds of resources.
+  // Eg: Users can make request to either a resource kind "kube_cluster" or any of its
+  // subresources like "namespaces". The mode can be defined such that it prevents a user
+  // from requesting "kube_cluster" and enforce requesting any of its subresources.
+  AccessRequestMode request_mode = 8 [(gogoproto.jsontag) = "request_mode,omitempty"];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on

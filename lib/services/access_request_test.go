@@ -2615,10 +2615,12 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			},
 		},
 		"request-mode-pod_search-as-roles-undefined": {
-			Options: types.RoleOptions{
-				RequestMode: &types.AccessRequestMode{
-					KubernetesResources: []types.RequestModeKubernetesResource{
-						{Kind: types.KindKubePod},
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.KindKubePod},
+						},
 					},
 				},
 			},
@@ -2627,12 +2629,10 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-namespace", "db-access-wildcard"},
-				},
-			},
-			Options: types.RoleOptions{
-				RequestMode: &types.AccessRequestMode{
-					KubernetesResources: []types.RequestModeKubernetesResource{
-						{Kind: types.KindKubeNamespace},
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.KindKubeNamespace},
+						},
 					},
 				},
 			},
@@ -2642,12 +2642,10 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-wildcard", "db-access-wildcard"},
-				},
-			},
-			Options: types.RoleOptions{
-				RequestMode: &types.AccessRequestMode{
-					KubernetesResources: []types.RequestModeKubernetesResource{
-						{Kind: types.Wildcard},
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.Wildcard},
+						},
 					},
 				},
 			},
@@ -2657,12 +2655,10 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-wildcard"},
-				},
-			},
-			Options: types.RoleOptions{
-				RequestMode: &types.AccessRequestMode{
-					KubernetesResources: []types.RequestModeKubernetesResource{
-						{Kind: types.KindKubeSecret},
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.KindKubeSecret},
+						},
 					},
 				},
 			},
@@ -2671,12 +2667,10 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-pod"},
-				},
-			},
-			Options: types.RoleOptions{
-				RequestMode: &types.AccessRequestMode{
-					KubernetesResources: []types.RequestModeKubernetesResource{
-						{Kind: types.KindKubePod},
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.KindKubePod},
+						},
 					},
 				},
 			},
@@ -2685,12 +2679,69 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-deployment"},
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.KindKubeDeployment},
+						},
+					},
 				},
 			},
-			Options: types.RoleOptions{
-				RequestMode: &types.AccessRequestMode{
-					KubernetesResources: []types.RequestModeKubernetesResource{
-						{Kind: types.KindKubeDeployment},
+		},
+		"request-mode-namespace_search-namespace_deny-secret": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"kube-access-namespace"},
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.KindNamespace},
+						},
+					},
+				},
+			},
+			Deny: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.KindKubeSecret},
+						},
+					},
+				},
+			},
+		},
+		"request-mode-undefined_search-wildcard_deny-deployment-pod": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"kube-access-wildcard"},
+				},
+			},
+			Deny: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.KindKubeDeployment},
+							{Kind: types.KindKubePod},
+						},
+					},
+				},
+			},
+		},
+		"request-mode-allow-cancels-deny-namespace": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{"kube-access-namespace"},
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.Wildcard},
+						},
+					},
+				},
+			},
+			Deny: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					RequestMode: &types.AccessRequestMode{
+						KubernetesResources: []types.RequestModeKubernetesResource{
+							{Kind: types.Wildcard},
+						},
 					},
 				},
 			},
@@ -2750,13 +2801,22 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			},
 		},
 		{
-			desc:                 "not configured request mode takes precedence over configured request mode (allow any kube request)",
+			desc:                 "not configured allow request mode takes precedence over configured allow request mode (allows any kube request)",
 			userStaticRoles:      []string{"request-mode-undefined_search-wildcard", "request-mode-secret_search-wildcard"},
 			expectedRequestRoles: []string{"kube-access-wildcard", "db-access-wildcard"},
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
 				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "some-namespace"},
+			},
+		},
+		{
+			desc:                 "not configured deny request mode takes precedence over configured deny request mode (nothing is denied)",
+			userStaticRoles:      []string{"request-mode-allow-cancels-deny-namespace", "request-mode-namespace_search-namespace"},
+			expectedRequestRoles: []string{"kube-access-namespace", "db-access-wildcard"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
+				{Kind: types.KindDatabase, ClusterName: myClusterName, Name: "db"},
 			},
 		},
 		{
@@ -2917,6 +2977,54 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			requestResourceIDs: []types.ResourceID{
 				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "some-namespace"},
 			},
+		},
+		{
+			desc:                 "allow namespace request when deny is not matched",
+			userStaticRoles:      []string{"request-mode-namespace_search-namespace_deny-secret"},
+			expectedRequestRoles: []string{"kube-access-namespace"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
+				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace2"},
+			},
+		},
+		{
+			desc:                 "deny request when deny kind is matched",
+			userStaticRoles:      []string{"request-mode-namespace_search-namespace_deny-secret"},
+			expectedRequestRoles: []string{"kube-access-namespace"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
+				{Kind: types.KindKubeSecret, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace/secret-name"},
+			},
+			wantRequestModeErr: true,
+		},
+		{
+			desc:                 "allow wildcard request when deny is not matched",
+			userStaticRoles:      []string{"request-mode-undefined_search-wildcard_deny-deployment-pod"},
+			expectedRequestRoles: []string{"kube-access-wildcard"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
+				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
+			},
+		},
+		{
+			desc:            "deny wildcard request when deny is matched",
+			userStaticRoles: []string{"request-mode-undefined_search-wildcard_deny-deployment-pod"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
+				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
+				{Kind: types.KindKubeDeployment, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace/deployment"},
+			},
+			wantRequestModeErr: true,
+		},
+		{
+			desc:            "request modes cancel each other (so nothing is requestable)",
+			userStaticRoles: []string{"request-mode-allow-cancels-deny-namespace"},
+			requestResourceIDs: []types.ResourceID{
+				{Kind: types.KindKubeNamespace, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace"},
+				{Kind: types.KindKubernetesCluster, ClusterName: myClusterName, Name: "kube"},
+				{Kind: types.KindKubeDeployment, ClusterName: myClusterName, Name: "kube", SubResourceName: "namespace/deployment"},
+			},
+			wantRequestModeErr: true,
 		},
 	}
 	for _, tc := range testCases {

@@ -497,7 +497,11 @@ func (r *RoleV6) SetKubeResources(rct RoleConditionType, pods []KubernetesResour
 
 // SetRequestMode sets the access request mode.
 func (r *RoleV6) SetRequestMode(requestMode *AccessRequestMode) {
-	r.Spec.Options.RequestMode = requestMode
+	if r.Spec.Allow.Request != nil {
+		r.Spec.Allow.Request.RequestMode = requestMode
+		return
+	}
+	r.Spec.Allow.Request = &AccessRequestConditions{RequestMode: requestMode}
 }
 
 // GetKubeUsers returns kubernetes users
@@ -1144,8 +1148,13 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	}
 
 	// Validate request_mode kubernetes_resources fields are all valid.
-	if r.Spec.Options.RequestMode != nil {
-		if err := validateKubeResourcesForAccessRequestMode(r.Version, r.Spec.Options.RequestMode.KubernetesResources); err != nil {
+	if r.Spec.Allow.Request != nil && r.Spec.Allow.Request.RequestMode != nil {
+		if err := validateKubeResourcesForAccessRequestMode(r.Version, r.Spec.Allow.Request.RequestMode.KubernetesResources); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if r.Spec.Deny.Request != nil && r.Spec.Deny.Request.RequestMode != nil {
+		if err := validateKubeResourcesForAccessRequestMode(r.Version, r.Spec.Deny.Request.RequestMode.KubernetesResources); err != nil {
 			return trace.Wrap(err)
 		}
 	}
