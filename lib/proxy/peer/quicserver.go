@@ -202,13 +202,14 @@ func (s *QUICServer) Serve(transport *quic.Transport) error {
 		}
 
 		s.wg.Add(1)
-		go s.handleConn(c)
+		go func() {
+			defer s.wg.Done()
+			s.handleConn(c)
+		}()
 	}
 }
 
 func (s *QUICServer) handleConn(conn quic.EarlyConnection) {
-	defer s.wg.Done()
-
 	log := s.log.With(
 		"remote_addr", conn.RemoteAddr().String(),
 		"internal_id", uuid.NewString(),
@@ -229,6 +230,9 @@ func (s *QUICServer) handleConn(conn quic.EarlyConnection) {
 	defer conn.CloseWithError(0, "")
 	defer context.AfterFunc(s.runCtx, func() { _ = conn.CloseWithError(0, "") })()
 
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
 	for {
 		// TODO(espadolini): stop accepting new streams once s.serveCtx is
 		// canceled, once quic-go gains the ability to change the amount of
@@ -239,14 +243,15 @@ func (s *QUICServer) handleConn(conn quic.EarlyConnection) {
 			return
 		}
 
-		s.wg.Add(1)
-		go s.handleStream(st, conn, log)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.handleStream(st, conn, log)
+		}()
 	}
 }
 
 func (s *QUICServer) handleStream(stream quic.Stream, conn quic.EarlyConnection, log *slog.Logger) {
-	defer s.wg.Done()
-
 	log = log.With("stream_id", stream.StreamID())
 	log.DebugContext(conn.Context(), "handling stream")
 	defer log.DebugContext(conn.Context(), "done handling stream")
