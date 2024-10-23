@@ -382,7 +382,8 @@ func (s *QUICServer) handleStream(stream quic.Stream, conn quic.EarlyConnection,
 		_, err := io.Copy(nodeConn, stream)
 		return trace.Wrap(err)
 	})
-	_ = eg.Wait()
+	err = eg.Wait()
+	log.DebugContext(conn.Context(), "done forwarding data", "error", err)
 }
 
 // dialResponseOK is the length-prefixed encoding of a DialResponse message that
