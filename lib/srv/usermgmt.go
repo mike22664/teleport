@@ -42,27 +42,54 @@ import (
 	"github.com/gravitational/teleport/lib/utils/host"
 )
 
-// NewHostUsers initialize a new HostUsers object
-func NewHostUsers(ctx context.Context, storage services.PresenceInternal, uuid string) HostUsers {
-	//nolint:staticcheck // SA4023. False positive on macOS.
-	backend, err := newHostUsersBackend()
-	switch {
-	case trace.IsNotImplemented(err), trace.IsNotFound(err):
-		slog.DebugContext(ctx, "Skipping host user management", "error", err)
-		return nil
-	case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-		slog.WarnContext(ctx, "Error making new HostUsersBackend", "error", err)
-		return nil
+type HostUsersOpt = func(hostUsers *HostUserManagement)
+
+// WithHostUsersBackend injects a custom backend to be used within HostUserManagement
+func WithHostUsersBackend(backend HostUsersBackend) HostUsersOpt {
+	return func(hostUsers *HostUserManagement) {
+		hostUsers.backend = backend
 	}
+}
+
+// DefaultHostUsersBackend returns the default HostUsersBackend for the host operating system
+func DefaultHostUsersBackend() (HostUsersBackend, error) {
+	return newHostUsersBackend()
+}
+
+// NewHostUsers initialize a new HostUsers object
+func NewHostUsers(ctx context.Context, storage services.PresenceInternal, uuid string, opts ...HostUsersOpt) HostUsers {
+	// handle fields that must be specified or aren't configurable
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
-	return &HostUserManagement{
+	hostUsers := &HostUserManagement{
 		log:       slog.With(teleport.ComponentKey, teleport.ComponentHostUsers),
-		backend:   backend,
 		ctx:       cancelCtx,
 		cancel:    cancelFunc,
 		storage:   storage,
 		userGrace: time.Second * 30,
 	}
+
+	// set configurable fields that don't have to be specified
+	for _, opt := range opts {
+		opt(hostUsers)
+	}
+
+	// set default values for required fields that don't have to be specified
+	if hostUsers.backend == nil {
+		//nolint:staticcheck // SA4023. False positive on macOS.
+		backend, err := newHostUsersBackend()
+		switch {
+		case trace.IsNotImplemented(err), trace.IsNotFound(err):
+			slog.DebugContext(ctx, "Skipping host user management", "error", err)
+			return nil
+		case err != nil: //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+			slog.WarnContext(ctx, "Error making new HostUsersBackend", "error", err)
+			return nil
+		}
+
+		hostUsers.backend = backend
+	}
+
+	return hostUsers
 }
 
 func NewHostSudoers(uuid string) HostSudoers {
@@ -197,11 +224,6 @@ type HostUserManagement struct {
 // GetBackend returns the unexported HostUsersBackend powering HostUsersManagement.
 func (u *HostUserManagement) GetBackend() HostUsersBackend {
 	return u.backend
-}
-
-// OverrideBackend overrides the HostUsersBackend implementation powering HostUsersManagement.
-func (u *HostUserManagement) OverrideBackend(backend HostUsersBackend) {
-	u.backend = backend
 }
 
 type HostSudoersManagement struct {

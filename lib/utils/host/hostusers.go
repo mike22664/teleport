@@ -204,7 +204,7 @@ func UserHasExpirations(username string) (bool bool, exitCode int, err error) {
 		return false, -1, trace.NotFound("cannot find chage binary: %s", err)
 	}
 
-	stdout := bytes.NewBuffer([]byte{})
+	stdout := new(bytes.Buffer)
 	cmd := exec.Command(chageBin, "-l", username)
 	cmd.Stdout = stdout
 	if err := cmd.Run(); err != nil {
@@ -219,17 +219,16 @@ func UserHasExpirations(username string) (bool bool, exitCode int, err error) {
 			continue
 		}
 
-		parts := strings.Split(line, ":")
-		if len(parts) < 2 {
+		key, value, validLine := strings.Cut(line, ":")
+		if !validLine {
 			return false, -1, trace.Errorf("chage output invalid")
 		}
 
-		key, value := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-		if value == "never" {
+		if strings.TrimSpace(value) == "never" {
 			continue
 		}
 
-		switch key {
+		switch strings.TrimSpace(key) {
 		case "Password expires", "Password inactive", "Account expires":
 			return true, 0, nil
 		}
@@ -264,14 +263,11 @@ func RemoveUserExpirations(username string) (exitCode int, err error) {
 		errs = append(errs, err)
 	}
 
-	switch len(errs) {
-	case 0:
-		return cmd.ProcessState.ExitCode(), nil
-	case 1:
-		return cmd.ProcessState.ExitCode(), trace.Wrap(errs[0])
-	default:
+	if len(errs) > 0 {
 		return cmd.ProcessState.ExitCode(), trace.NewAggregate(errs...)
 	}
+
+	return cmd.ProcessState.ExitCode(), nil
 }
 
 var ErrInvalidSudoers = errors.New("visudo: invalid sudoers file")

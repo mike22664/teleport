@@ -519,13 +519,14 @@ func TestRootHostUsers(t *testing.T) {
 		backendExpiredUser := "backend-expired-user"
 		t.Cleanup(func() { cleanupUsersAndGroups([]string{expiredUser, backendExpiredUser}, []string{"test-group"}) })
 
-		users := srv.NewHostUsers(context.Background(), presence, "host_uuid").(*srv.HostUserManagement)
-		backend := users.GetBackend()
-		users.OverrideBackend(&hostUsersBackendWithExp{HostUsersBackend: backend})
-		backend = users.GetBackend() // GetBackend again so we get the overridden version
+		defaultBackend, err := srv.DefaultHostUsersBackend()
+		require.NoError(t, err)
+
+		backend := &hostUsersBackendWithExp{HostUsersBackend: defaultBackend}
+		users := srv.NewHostUsers(context.Background(), presence, "host_uuid", srv.WithHostUsersBackend(backend))
 
 		// Make sure the backend actually creates expired users
-		err := backend.CreateUser("backend-expired-user", nil, host.UserOpts{})
+		err = backend.CreateUser("backend-expired-user", nil, host.UserOpts{})
 		require.NoError(t, err)
 
 		hasExpirations, _, err := host.UserHasExpirations(backendExpiredUser)
