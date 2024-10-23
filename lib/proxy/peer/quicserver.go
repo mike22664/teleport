@@ -349,10 +349,7 @@ func (s *QUICServer) handleStream(stream quic.Stream, conn quic.EarlyConnection,
 	var eg errgroup.Group
 	eg.Go(func() error {
 		defer stream.Close()
-		// an empty protobuf message has an empty wire encoding, so by sending a
-		// size of 0 (i.e. four zero bytes) we are sending an empty DialResponse
-		// with an empty Status, which signifies a successful dial
-		if _, err := stream.Write(binary.LittleEndian.AppendUint32(nil, 0)); err != nil {
+		if _, err := stream.Write([]byte(dialResponseOK)); err != nil {
 			return trace.Wrap(err)
 		}
 		_, err := io.Copy(stream, nodeConn)
@@ -375,6 +372,10 @@ func (s *QUICServer) handleStream(stream quic.Stream, conn quic.EarlyConnection,
 	})
 	_ = eg.Wait()
 }
+
+// dialResponseOK is the length-prefixed encoding of a DialResponse message that
+// signifies a successful dial.
+const dialResponseOK = "\x00\x00\x00\x00"
 
 // Close stops listening for incoming connections and ungracefully terminates
 // all the existing ones.
