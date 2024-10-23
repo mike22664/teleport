@@ -49,11 +49,11 @@ const (
 type App struct {
 	conf Config
 
-	apiClient  teleport.Client
-	bot        *Bot
-	mainJob    lib.ServiceJob
-	watcherJob lib.ServiceJob
-	pd         *pd.CompareAndSwap[PluginData]
+	apiClient             teleport.Client
+	bot                   *Bot
+	mainJob               lib.ServiceJob
+	watcherJob            lib.ServiceJob
+	pd                    *pd.CompareAndSwap[PluginData]
 	log                   *slog.Logger
 	accessMonitoringRules *accessmonitoring.RuleHandler
 
@@ -185,10 +185,10 @@ func (a *App) initBot(ctx context.Context) error {
 		"id", teamsApp.ID)
 
 	if err := a.bot.CheckHealth(ctx); err != nil {
-		log.WithField("name", teamsApp.DisplayName).
-			WithField("id", teamsApp.ID).
-			WithError(err).
-			Warn("MS Teams healthcheck failed")
+
+		a.log.WarnContext(ctx, "MS Teams healthcheck failed",
+			"name", teamsApp.DisplayName,
+			"id", teamsApp.ID)
 	}
 
 	if !a.conf.Preload {
@@ -258,7 +258,6 @@ func (a *App) run(ctx context.Context) error {
 			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
 		}
 	}
-	log := logger.Get(ctx)
 
 	a.watcherJob = watcherJob
 	a.watcherJob.SetReady(ok)
