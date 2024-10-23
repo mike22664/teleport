@@ -114,33 +114,36 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		availableMethods = append(availableMethods, CLIMFATypeOTP)
 	}
 
-	// Use stronger auth methods if hijack is not allowed.
-	if !c.AllowStdinHijack && (promptWebauthn || promptSSO) {
-		promptOTP = false
-	}
-
-	// Prefer Webauthn > SSO > OTP, or whatever method is requested or required by the client.
+	// Prefer whatever method is requested by the client.
 	var chosenMethod string
 	switch {
-	case promptWebauthn && c.AuthenticatorAttachment != wancli.AttachmentAuto:
-		// Prefer Webauthn if a specific webauthn attachment was requested.
-		chosenMethod = CLIMFATypeWebauthn
-		promptSSO, promptOTP = false, false
 	case c.PreferSSO && promptSSO:
 		chosenMethod = CLIMFATypeSSO
 		promptWebauthn, promptOTP = false, false
 	case c.PreferOTP && promptOTP:
 		chosenMethod = CLIMFATypeOTP
 		promptWebauthn, promptSSO = false, false
+	}
+
+	// Use stronger auth methods if hijack is not allowed.
+	if !c.AllowStdinHijack && (promptWebauthn || promptSSO) {
+		promptOTP = false
+	}
+
+	// If we have multiple viable options, prefer Webauthn > SSO > OTP.
+	switch {
 	case promptWebauthn:
-		// prefer webauthn over sso, but allow dual prompt with totp.
 		chosenMethod = CLIMFATypeWebauthn
 		promptSSO = false
-		if promptOTP {
+
+		// If a specific webauthn attachment was requested, skip OTP.
+		// Otherwise, allow dual prompt with OTP.
+		if c.AuthenticatorAttachment != wancli.AttachmentAuto {
+			promptOTP = false
+		} else if promptOTP {
 			chosenMethod = fmt.Sprintf("%v and %v", CLIMFATypeWebauthn, CLIMFATypeOTP)
 		}
 	case promptSSO:
-		// prefer sso over otp
 		chosenMethod = CLIMFATypeSSO
 		promptOTP = false
 	case promptOTP:
@@ -148,7 +151,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 	}
 
 	fmt.Fprintf(c.Writer, "Available MFA methods [%v]. Continuing with %v.\n", strings.Join(availableMethods, ", "), chosenMethod)
-	fmt.Fprintln(c.Writer, "If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.")
+	fmt.Fprintf(c.Writer, "If you wish to perform MFA with another method, specify with flag --mfa-mode=<sso,otp>.\n\n")
 
 	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
 	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- MFAGoroutineResponse) {
