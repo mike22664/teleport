@@ -4752,7 +4752,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			peerQUICServer, err := peer.NewQUICServer(peer.QUICServerConfig{
 				Log:           process.logger,
 				ClusterDialer: clusterdial.NewClusterDialer(tsrv),
-				CipherSuites:  cfg.CipherSuites,
 				GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 					return conn.serverGetCertificate()
 				},

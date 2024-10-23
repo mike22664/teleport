@@ -56,20 +56,24 @@ func (c *Client) connectQUIC(peerID string, peerAddr string) (*quicClientConn, e
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig := utils.TLSConfig(c.config.TLSCipherSuites)
 	getCertificate := c.config.GetTLSCertificate
-	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		cert, err := getCertificate()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return cert, nil
+	// crypto/tls doesn't allow us to configure TLS 1.3 ciphersuites, and the
+	// only other effect of [utils.TLSConfig] is to require at least TLS 1.2,
+	// but QUIC requires at least TLS 1.3 anyway
+	tlsConfig := &tls.Config{
+		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			cert, err := getCertificate()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return cert, nil
+		},
+		VerifyPeerCertificate: verifyPeerCertificateIsSpecificProxy(peerID + "." + c.config.ClusterName),
+		NextProtos:            []string{quicNextProto},
+		ServerName:            apiutils.EncodeClusterName(c.config.ClusterName),
+		ClientSessionCache:    tls.NewLRUClientSessionCache(0),
+		MinVersion:            tls.VersionTLS13,
 	}
-	tlsConfig.VerifyPeerCertificate = verifyPeerCertificateIsSpecificProxy(peerID + "." + c.config.ClusterName)
-	tlsConfig.NextProtos = []string{quicNextProto}
-	tlsConfig.ServerName = apiutils.EncodeClusterName(c.config.ClusterName)
-	tlsConfig.ClientSessionCache = tls.NewLRUClientSessionCache(0)
-	tlsConfig.MinVersion = tls.VersionTLS13
 
 	quicConfig := &quic.Config{
 		MaxStreamReceiveWindow:     quicMaxReceiveWindow,
