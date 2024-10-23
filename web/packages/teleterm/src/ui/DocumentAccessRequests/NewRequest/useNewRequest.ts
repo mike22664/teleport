@@ -211,9 +211,14 @@ export default function useNewRequest(rootCluster: Cluster) {
       return;
     }
 
+    /**
+     * This should never happen but just a safeguard.
+     * This function is used in the "unified resources" view,
+     * where a user can click on a "request access" button.
+     * Selecting kube_cluster's namespace is not available in this view
+     * (instead it is rendered in the "request checkout" view).
+     */
     if (kind === 'namespace') {
-      // It is not possible to request a kube namespace through this function.
-      // The type should be corrected.
       return;
     }
 

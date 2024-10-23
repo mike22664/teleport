@@ -68,7 +68,7 @@ test('fetching requestable roles for servers uses UUID, not hostname', async () 
   );
 });
 
-test('fetching requestable roles kube_cluster resource without namespace request', async () => {
+test('fetching requestable roles for a kube_cluster resource without specifying a namespace', async () => {
   const kube = makeKube();
   const cluster = makeRootCluster();
   const appContext = new MockAppContext();

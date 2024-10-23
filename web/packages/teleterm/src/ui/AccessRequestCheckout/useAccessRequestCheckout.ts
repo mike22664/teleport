@@ -163,10 +163,6 @@ export default function useAccessRequestCheckout() {
   /**
    *
    * @param pendingRequest holds a list or map of resources to process
-   * @param excludeSubResourceParentResource when true, resources that have
-   * subresources, will be excluded from the returned list. eg:
-   * if a kube_cluster resource has a list of namespaces (subresources),
-   * then if this flag is true, kube_cluster will be excluded from the result.
    */
   function getPendingAccessRequestsPerResource(
     pendingRequest: PendingAccessRequest
@@ -293,19 +289,11 @@ export default function useAccessRequestCheckout() {
       resourceIds: pendingAccessRequestsWithoutParentResource
         .filter(d => d.kind !== 'role')
         .map(d => {
-          if (d.kind === 'namespace') {
-            return {
-              name: d.id,
-              kind: d.kind,
-              clusterName: d.clusterName,
-              subResourceName: d.subResourceName,
-            };
-          }
           return {
             name: d.id,
             clusterName: d.clusterName,
             kind: d.kind,
-            subResourceName: '',
+            subResourceName: d.subResourceName || '',
           };
         }),
       roles: pendingAccessRequestsWithoutParentResource
@@ -345,6 +333,9 @@ export default function useAccessRequestCheckout() {
   async function performDryRun() {
     let teletermAccessRequest: TeletermAccessRequest;
 
+    // reset any create attempts between dry runs.
+    setCreateRequestAttempt({ status: '' });
+
     try {
       const { accessRequest } = await prepareAndCreateRequest({
         dryRun: true,
@@ -352,11 +343,8 @@ export default function useAccessRequestCheckout() {
       });
       teletermAccessRequest = accessRequest;
     } catch {
-      setCreateRequestAttempt({ status: '' });
       return;
     }
-
-    setCreateRequestAttempt({ status: '' });
 
     const accessRequest = makeUiAccessRequest(teletermAccessRequest);
     onDryRunChange(accessRequest);
@@ -440,7 +428,7 @@ export default function useAccessRequestCheckout() {
     isCollapsed,
     assumedRequests: getAssumedRequests(),
     toggleResource,
-    data: pendingAccessRequests,
+    pendingAccessRequests,
     shouldShowClusterNameColumn,
     createRequest,
     reset,
