@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -29,6 +30,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mailgun/mailgun-go/v4"
 	"gopkg.in/mail.v2"
+
+	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/lib/logger"
+)
+
+const (
+	statusEmitTimeout = 10 * time.Second
 )
 
 // Mailer is an interface to mail sender
@@ -59,11 +67,18 @@ func NewSMTPMailer(c SMTPConfig, sender, clusterName string) Mailer {
 }
 
 // NewMailgunMailer inits new Mailgun mailer
-func NewMailgunMailer(c MailgunConfig, sender, clusterName string) Mailer {
+func NewMailgunMailer(c MailgunConfig, sink common.StatusSink, sender, clusterName string) Mailer {
 	m := mailgun.NewMailgun(c.Domain, c.PrivateKey)
 	if c.APIBase != "" {
 		m.SetAPIBase(c.APIBase)
 	}
+	client := &http.Client{
+		Transport: &statusSinkTransport{
+			RoundTripper: http.DefaultTransport,
+			sink:         sink,
+		},
+	}
+	m.SetClient(client)
 	return &MailgunMailer{m, sender, clusterName}
 }
 
@@ -146,4 +161,31 @@ func (m *MailgunMailer) Send(ctx context.Context, id, recipient, body, reference
 	}
 
 	return id, nil
+}
+
+// statusSinkTransport wraps the Mailgun client transport and
+// emits plugin status.
+type statusSinkTransport struct {
+	http.RoundTripper
+	sink common.StatusSink
+}
+
+// RoundTrip implements the http.RoundTripper interface.
+func (t *statusSinkTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	log := logger.Get(req.Context())
+	resp, err := t.RoundTripper.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	if t.sink != nil {
+		// No usable context in scope, use background with a reasonable timeout
+		ctx, cancel := context.WithTimeout(context.Background(), statusEmitTimeout)
+		defer cancel()
+
+		status := common.StatusFromStatusCode(resp.StatusCode)
+		if err := t.sink.Emit(ctx, status); err != nil {
+			log.WithError(err).Errorf("Error while emitting Email plugin status: %v", err)
+		}
+	}
+	return resp, nil
 }

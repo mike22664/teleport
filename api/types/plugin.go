@@ -42,6 +42,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeEntraID,
 	PluginTypeSCIM,
 	PluginTypeDatadog,
+	PluginTypeEmail,
 }
 
 const (
@@ -75,6 +76,8 @@ const (
 	PluginTypeSCIM = "scim"
 	// PluginTypeDatadog indicates the Datadog Incident Management plugin
 	PluginTypeDatadog = "datadog"
+	// PluginTypeEmail indicates an Email access plugin
+	PluginTypeEmail = "email"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -348,6 +351,17 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := settings.AwsIc.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *PluginSpecV1_Email:
+		if settings.Email == nil {
+			return trace.BadParameter("missing Email settings")
+		}
+		if err := settings.Email.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Email plugin must be used with the static credentials ref type")
+		}
 	default:
 		return nil
 	}
@@ -512,6 +526,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeSCIM
 	case *PluginSpecV1_Datadog:
 		return PluginTypeDatadog
+	case *PluginSpecV1_Email:
+		return PluginTypeEmail
 
 	default:
 		return PluginTypeUnknown
@@ -728,6 +744,19 @@ func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
 		return trace.BadParameter("base URL data must be set")
 	}
 
+	return nil
+}
+
+func (c *PluginEmailSettings) CheckAndSetDefaults() error {
+	if c.Domain == "" {
+		return trace.BadParameter("domain must be set")
+	}
+	if c.Sender == "" {
+		return trace.BadParameter("sender must be set")
+	}
+	if c.FallbackRecipient == "" {
+		return trace.BadParameter("fallback_recipient must be set")
+	}
 	return nil
 }
 

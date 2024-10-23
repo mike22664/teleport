@@ -158,7 +158,8 @@ export type PluginSpec =
   | PluginSlackSpec
   | PluginMattermostSpec
   | PluginOpsgenieSpec
-  | PluginDatadogSpec;
+  | PluginDatadogSpec
+  | PluginEmailSpec;
 
 // PluginKind represents the type of the plugin
 // and should be the same value as defined in the backend (check master branch for the latest):
@@ -226,6 +227,12 @@ export type PluginDatadogSpec = {
   apiEndpoint: string;
   fallbackRecipient: string;
 };
+
+export type PluginEmailSpec = {
+  domain: string;
+  sender: string;
+  fallbackRecipient: string;
+}
 
 export type IntegrationCreateRequest = {
   name: string;

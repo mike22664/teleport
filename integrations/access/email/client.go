@@ -59,7 +59,7 @@ func NewClient(ctx context.Context, conf Config, clusterName, webProxyAddr strin
 	}
 
 	if conf.Mailgun != nil {
-		mailer = NewMailgunMailer(*conf.Mailgun, conf.Delivery.Sender, clusterName)
+		mailer = NewMailgunMailer(*conf.Mailgun, conf.StatusSink, conf.Delivery.Sender, clusterName)
 		logger.Get(ctx).WithField("domain", conf.Mailgun.Domain).Info("Using Mailgun as email transport")
 	}
 
