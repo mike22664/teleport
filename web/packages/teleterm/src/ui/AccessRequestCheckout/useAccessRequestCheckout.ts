@@ -24,15 +24,13 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import {
   getDryRunMaxDuration,
   PendingListItem,
+  PendingKubeResourceItem,
+  isKubeClusterWithNamespaces,
+  KubeNamespaceRequest,
 } from 'shared/components/AccessRequests/NewRequest';
 import { useSpecifiableFields } from 'shared/components/AccessRequests/NewRequest/useSpecifiableFields';
 
 import { CreateRequest } from 'shared/components/AccessRequests/Shared/types';
-import {
-  isKubeClusterWithNamespaces,
-  KubeNamespaceRequest,
-} from 'shared/components/AccessRequests/NewRequest/kube';
-import { PendingKubeResourceItem } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/RequestCheckout';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -161,7 +159,6 @@ export default function useAccessRequestCheckout() {
   }, [showCheckout, hasExited, createRequestAttempt.status]);
 
   /**
-   *
    * @param pendingRequest holds a list or map of resources to process
    */
   function getPendingAccessRequestsPerResource(

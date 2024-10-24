@@ -327,12 +327,6 @@ export function extractResourceRequestProperties({
   id: string;
   /**
    * Can refer to a pretty name of the resource (can be the same as `id`)
-   * or refer to a subresource name.
-   *
-   * For example:
-   * - for nodes, we want to show hostname (pretty) instead of its id.
-   * - for a kube subresource like "namespace", it'll refer to its name
-   *
    */
   name: string;
 } {

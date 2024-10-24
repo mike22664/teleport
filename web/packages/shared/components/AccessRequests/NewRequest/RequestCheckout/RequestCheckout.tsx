@@ -48,7 +48,6 @@ import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { mergeRefs } from 'shared/libs/mergeRefs';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
-import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 import { CreateRequest } from '../../Shared/types';
 import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
