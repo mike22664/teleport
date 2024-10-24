@@ -42,10 +42,11 @@ import { Danger } from 'design/Alert';
 
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
-import { pluralize } from 'shared/utils/text';
+import { listToSentence, pluralize } from 'shared/utils/text';
 import { Option } from 'shared/components/Select';
 import { FieldCheckbox } from 'shared/components/FieldCheckbox';
 import { mergeRefs } from 'shared/libs/mergeRefs';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
 
 import { CreateRequest } from '../../Shared/types';
@@ -66,8 +67,6 @@ import { CrossIcon } from './CrossIcon';
 
 import type { TransitionStatus } from 'react-transition-group';
 import type { AccessRequest } from 'shared/services/accessRequests';
-import { P } from 'design/Text/Text';
-import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 export const RequestCheckoutWithSlider = forwardRef<
   HTMLDivElement,
@@ -299,9 +298,10 @@ export function RequestCheckout<T extends PendingListItem>({
           {hasUnsupportedKubeRequestModes && (
             <Alert kind="danger">
               <Text mb={2}>
-                You can only request Kubernetes resource kind [
-                {unsupportedKubeRequestModes.join(', ')}] for cluster{' '}
-                <Mark>{affectedKubeClusterName}</Mark>. Requesting those
+                You can only request Kubernetes resource{' '}
+                {pluralize(unsupportedKubeRequestModes.length, 'kind')}{' '}
+                <Mark>{listToSentence(unsupportedKubeRequestModes)}</Mark> for
+                cluster <Mark>{affectedKubeClusterName}</Mark>. Requesting those
                 resource kinds is currently only supported through the{' '}
                 <ExternalLink
                   target="_blank"
