@@ -278,7 +278,7 @@ export function Navigation() {
               >
                 <Box
                   css={`
-                    overflow-y: scroll;
+                    overflow-y: auto;
                     padding: 3px;
                   `}
                 >

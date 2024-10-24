@@ -69,8 +69,6 @@ export const RightPanel = styled(Box).attrs({ pt: 2, px: 2 })<{
   position: fixed;
   left: var(--sidenav-width);
   height: 100%;
-  scrollbar-gutter: auto;
-  overflow: visible;
   width: ${rightPanelWidth};
   background: ${p => p.theme.colors.levels.surface};
   z-index: ${zIndexMap.sideNavExpandedPanel};
