@@ -112,6 +112,10 @@ export const CategoryButton = styled.button<{
   justify-content: center;
   border-radius: ${props => props.theme.radii[2]}px;
   z-index: ${zIndexMap.sideNavButtons};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: ${props => props.theme.space[1]}px;
 
   font-size: ${props => props.theme.typography.body4.fontSize};
   font-weight: ${props => props.theme.typography.body4.fontWeight};
