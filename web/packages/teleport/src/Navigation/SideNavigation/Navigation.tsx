@@ -123,6 +123,8 @@ function getSubsectionsForCategory(
   });
 }
 
+// getNavSubsectionForRoute returns the sidenav subsection that the user is correctly on (based on route).
+// Note that it is possible for this not to return anything, such as in the case where the user is on a page that isn't in the sidenav (eg. Account Settings).
 function getNavSubsectionForRoute(
   features: TeleportFeature[],
   route: history.Location<unknown> | Location
@@ -194,6 +196,8 @@ export function Navigation() {
   const [previousExpandedSection, setPreviousExpandedSection] =
     useState<NavigationSection | null>();
 
+  // currentView is the sidenav subsection that the user is correctly on (based on route).
+  // Note that it is possible for the currentView to be undefined, such as in the case where the user is on a page that isn't in the sidenav (eg. Account Settings).
   const currentView = getNavSubsectionForRoute(features, history.location);
 
   const navSections = getNavigationSections(features).filter(
