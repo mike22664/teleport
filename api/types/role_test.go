@@ -537,9 +537,11 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 				"test",
 				tt.args.version,
 				RoleSpecV6{
-					Options: RoleOptions{
-						RequestMode: &AccessRequestMode{
-							KubernetesResources: tt.args.resources,
+					Allow: RoleConditions{
+						Request: &AccessRequestConditions{
+							RequestMode: &AccessRequestMode{
+								KubernetesResources: tt.args.resources,
+							},
 						},
 					},
 				},
@@ -548,7 +550,7 @@ func TestRole_OptionsRequestModeKubeResources(t *testing.T) {
 			if err != nil {
 				return
 			}
-			got := r.GetOptions().RequestMode.KubernetesResources
+			got := r.GetRoleConditions(Allow).Request.RequestMode.KubernetesResources
 			require.Equal(t, tt.want, got)
 		})
 	}
