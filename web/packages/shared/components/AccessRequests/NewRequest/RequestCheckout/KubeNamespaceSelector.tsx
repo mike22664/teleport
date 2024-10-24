@@ -41,7 +41,7 @@ export function KubeNamespaceSelector({
   namespaceRequired,
 }: {
   kubeClusterItem: PendingListItem;
-  fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<Option[]>;
+  fetchKubeNamespaces(p: KubeNamespaceRequest): Promise<string[]>;
   savedResourceItems: PendingListItem[];
   toggleResource: (resource: PendingListItem) => void;
   bulkToggleKubeResources: (
