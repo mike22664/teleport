@@ -3437,12 +3437,12 @@ message AccessRequestConditions {
     (gogoproto.casttype) = "Duration"
   ];
 
-  // request_mode optionally allows admins to define a create request mode for applicable resources.
+  // mode optionally allows admins to define a create request mode for applicable resources.
   // It can enforce a requester to request only certain kinds of resources.
   // Eg: Users can make request to either a resource kind "kube_cluster" or any of its
   // subresources like "namespaces". The mode can be defined such that it prevents a user
   // from requesting "kube_cluster" and enforce requesting any of its subresources.
-  AccessRequestMode request_mode = 8 [(gogoproto.jsontag) = "request_mode,omitempty"];
+  AccessRequestMode mode = 8 [(gogoproto.jsontag) = "mode,omitempty"];
 }
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on

@@ -3313,11 +3313,11 @@ func WithKubernetesRequestModeFilter(kind string) SearchAsRolesOption {
 		var allowedKinds []string
 		var deniedKinds []string
 		allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
-		if allow.RequestMode != nil {
-			allowedKinds = getKubeResourceKinds(allow.RequestMode.KubernetesResources)
+		if allow.Mode != nil {
+			allowedKinds = getKubeResourceKinds(allow.Mode.KubernetesResources)
 		}
-		if deny.RequestMode != nil {
-			deniedKinds = getKubeResourceKinds(deny.RequestMode.KubernetesResources)
+		if deny.Mode != nil {
+			deniedKinds = getKubeResourceKinds(deny.Mode.KubernetesResources)
 		}
 
 		// No request modes found == allow any kube resource.

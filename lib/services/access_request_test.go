@@ -2617,7 +2617,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 		"request-mode-pod_search-as-roles-undefined": {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.KindKubePod},
 						},
@@ -2629,7 +2629,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-namespace", "db-access-wildcard"},
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.KindKubeNamespace},
 						},
@@ -2642,7 +2642,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-wildcard", "db-access-wildcard"},
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.Wildcard},
 						},
@@ -2655,7 +2655,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-wildcard"},
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.KindKubeSecret},
 						},
@@ -2667,7 +2667,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-pod"},
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.KindKubePod},
 						},
@@ -2679,7 +2679,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-deployment"},
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.KindKubeDeployment},
 						},
@@ -2691,7 +2691,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-namespace"},
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.KindNamespace},
 						},
@@ -2700,7 +2700,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			},
 			Deny: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.KindKubeSecret},
 						},
@@ -2716,7 +2716,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			},
 			Deny: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.KindKubeDeployment},
 							{Kind: types.KindKubePod},
@@ -2729,7 +2729,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"kube-access-namespace"},
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.Wildcard},
 						},
@@ -2738,7 +2738,7 @@ func TestValidate_WithKubernetesRequestMode(t *testing.T) {
 			},
 			Deny: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
-					RequestMode: &types.AccessRequestMode{
+					Mode: &types.AccessRequestMode{
 						KubernetesResources: []types.RequestModeKubernetesResource{
 							{Kind: types.Wildcard},
 						},

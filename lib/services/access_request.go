@@ -1545,8 +1545,8 @@ func (m *RequestValidator) push(ctx context.Context, role types.Role) error {
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
 	// Collect all the request modes for the search as roles found for this role.
-	setKubeRequestModeLookup(allow.RequestMode, allow.SearchAsRoles, m.kubeRequestModeLookup.allow)
-	setKubeRequestModeLookup(deny.RequestMode, allow.SearchAsRoles, m.kubeRequestModeLookup.deny)
+	setKubeRequestModeLookup(allow.Mode, allow.SearchAsRoles, m.kubeRequestModeLookup.allow)
+	setKubeRequestModeLookup(deny.Mode, allow.SearchAsRoles, m.kubeRequestModeLookup.deny)
 
 	m.Roles.DenyRequest, err = appendRoleMatchers(m.Roles.DenyRequest, deny.Roles, deny.ClaimsToRoles, m.userState.GetTraits())
 	if err != nil {

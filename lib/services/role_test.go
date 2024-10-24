@@ -198,7 +198,7 @@ func TestRoleParse(t *testing.T) {
 					"spec": {
 						"allow": {
 						  "request": {
-							  "request_mode": {
+							  "mode": {
 							    "kubernetes_resources": [{"kind":"abcd"}]
 							  }
 							}
@@ -217,7 +217,7 @@ func TestRoleParse(t *testing.T) {
 					"spec": {
 						"allow": {
 						  "request": {
-							  "request_mode": {
+							  "mode": {
 							    "kubernetes_resources": [{"kind":"namespace"}]
 							  }
 							}
@@ -373,7 +373,7 @@ func TestRoleParse(t *testing.T) {
 					},
 					"allow": {
 					  "request": {
-							"request_mode": {
+							"mode": {
 							  "kubernetes_resources": [{"kind":"pod"}]
 							}
 						},
@@ -398,7 +398,7 @@ func TestRoleParse(t *testing.T) {
 					},
 					"deny": {
 					  "request": {
-							"request_mode": {
+							"mode": {
 							  "kubernetes_resources": [{"kind":"pod"}]
 							}
 						},
@@ -458,7 +458,7 @@ func TestRoleParse(t *testing.T) {
 							},
 						},
 						Request: &types.AccessRequestConditions{
-							RequestMode: &types.AccessRequestMode{
+							Mode: &types.AccessRequestMode{
 								KubernetesResources: []types.RequestModeKubernetesResource{
 									{Kind: types.KindKubePod},
 								},
@@ -469,7 +469,7 @@ func TestRoleParse(t *testing.T) {
 						Namespaces: []string{apidefaults.Namespace},
 						Logins:     []string{"c"},
 						Request: &types.AccessRequestConditions{
-							RequestMode: &types.AccessRequestMode{
+							Mode: &types.AccessRequestMode{
 								KubernetesResources: []types.RequestModeKubernetesResource{
 									{Kind: types.KindKubePod},
 								},
@@ -4760,7 +4760,7 @@ func TestGetAllowedSearchAsRolesMeetingKubeRequestModes(t *testing.T) {
 				Allow: types.RoleConditions{
 					Request: &types.AccessRequestConditions{
 						SearchAsRoles: allowRoles,
-						RequestMode: &types.AccessRequestMode{
+						Mode: &types.AccessRequestMode{
 							KubernetesResources: allowRequestModes,
 						},
 					},
@@ -4768,7 +4768,7 @@ func TestGetAllowedSearchAsRolesMeetingKubeRequestModes(t *testing.T) {
 				Deny: types.RoleConditions{
 					Request: &types.AccessRequestConditions{
 						SearchAsRoles: denyRoles,
-						RequestMode: &types.AccessRequestMode{
+						Mode: &types.AccessRequestMode{
 							KubernetesResources: denyRequestModes,
 						},
 					},
