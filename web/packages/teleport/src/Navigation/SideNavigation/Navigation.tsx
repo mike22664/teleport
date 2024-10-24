@@ -220,6 +220,7 @@ export function Navigation() {
 
   return (
     <Box
+      as="nav"
       onMouseLeave={() => resetExpandedSection()}
       onKeyUp={e => e.key === 'Escape' && resetExpandedSection()}
       onBlur={(event: React.FocusEvent<HTMLDivElement, Element>) => {
