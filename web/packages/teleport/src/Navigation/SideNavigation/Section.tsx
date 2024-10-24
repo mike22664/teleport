@@ -215,6 +215,9 @@ export function getSubsectionStyles(theme: Theme, active: boolean) {
     return css`
       color: ${theme.colors.brand};
       background: ${theme.colors.interactive.tonal.primary[0]};
+      p {
+        font-weight: 500;
+      }
       &:focus-visible {
         outline: 2px solid ${theme.colors.interactive.solid.primary.default};
       }

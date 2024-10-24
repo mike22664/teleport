@@ -19,7 +19,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { matchPath, useHistory } from 'react-router';
-import { Text, Flex, Box } from 'design';
+import { Text, Flex, Box, P2 } from 'design';
 
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
@@ -297,7 +297,7 @@ export function Navigation() {
                         key={section.title}
                       >
                         <section.icon size={16} />
-                        <Text typography="body2">{section.title}</Text>
+                        <P2>{section.title}</P2>
                       </SubsectionItem>
                     ))}
                 </Box>
