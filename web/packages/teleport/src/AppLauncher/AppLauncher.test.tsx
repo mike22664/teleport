@@ -86,7 +86,7 @@ describe('app launcher path is properly formed', () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'grafana.localhost',
       localClusterName: 'localhost',
-      publicAddress: 'grafana.localhost'
+      publicAddress: 'grafana.localhost',
     });
     jest.spyOn(service, 'createAppSession').mockResolvedValue({
       cookieValue: 'cookie-value',
@@ -284,7 +284,7 @@ describe('fqdn is matched', () => {
       jest.spyOn(service, 'getAppDetails').mockResolvedValue({
         fqdn: returnedFqdn,
         localClusterName: '',
-        publicAddress:'',
+        publicAddress: '',
       });
       jest.spyOn(service, 'createAppSession');
 
@@ -313,8 +313,8 @@ describe('fqdn is matched', () => {
   test('not matching FQDN throws error', async () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'different.fqdn',
-      localClusterName: 'test',
-      publicAddress:'https://test-app.test.teleport',
+      localClusterName: 'test.teleport',
+      publicAddress: 'https://test-app.test.teleport',
     });
 
     render(
@@ -342,7 +342,7 @@ describe('fqdn is matched', () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'test-app.root.teleport',
       localClusterName: 'root',
-      publicAddress:'malicious.teleporto',
+      publicAddress: 'malicious.teleporto',
     });
 
     render(
@@ -369,8 +369,8 @@ describe('fqdn is matched', () => {
   test('not matching FQDN and public address from another cluster throws error', async () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'test-app.root.teleport',
-      localClusterName: 'root',
-      publicAddress:'test-app.leaf.teleport',
+      localClusterName: 'root.teleport',
+      publicAddress: 'test-app.leaf.teleport',
     });
 
     render(
@@ -398,7 +398,7 @@ describe('fqdn is matched', () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'test-app.root.teleport',
       localClusterName: 'root.teleport',
-      publicAddress:'test-app.leaf.teleport',
+      publicAddress: 'test-app.leaf.teleport',
     });
 
     render(
@@ -425,7 +425,7 @@ describe('fqdn is matched', () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({
       fqdn: 'invalid.fqdn:3080:3090',
       localClusterName: '',
-      publicAddress:'',
+      publicAddress: '',
     });
 
     render(
