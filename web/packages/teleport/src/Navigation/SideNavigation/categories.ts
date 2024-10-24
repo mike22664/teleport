@@ -30,10 +30,14 @@ export enum CustomNavigationCategory {
   Search = 'Search',
 }
 
+/* CustomNavigationSubcategory are subcategories within a navigation category which can be used to create groupings of subsections, eg. Filtered Views. */
+export enum CustomNavigationSubcategory {
+  FilteredViews = 'Filtered Views',
+}
+
 export type SidenavCategory = NavigationCategory | CustomNavigationCategory;
 
 export const NAVIGATION_CATEGORIES = [
-  NavigationCategory.Resources,
   NavigationCategory.Access,
   NavigationCategory.Identity,
   NavigationCategory.Policy,
@@ -41,8 +45,4 @@ export const NAVIGATION_CATEGORIES = [
   NavigationCategory.AddNew,
 ];
 
-export const STANDALONE_CATEGORIES = [
-  NavigationCategory.AddNew,
-  // TODO(rudream): Remove this once shortcuts to pinned/nodes/apps/dbs/desktops/kubes are implemented.
-  NavigationCategory.Resources,
-];
+export const STANDALONE_CATEGORIES = [NavigationCategory.AddNew];
